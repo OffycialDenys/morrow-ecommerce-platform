@@ -15,6 +15,7 @@
 - Signed-in customers can download a streamed, versioned JSON export of their account profile and customer-facing saved-product, order, payment-attempt, points, giveaway, and review records. The response is owner-scoped and marked private/no-store; its current scope and exclusions are documented in `docs/account-data-export.md`.
 - Production settings require an externally supplied secret, enable secure session/CSRF cookies, SSL redirect, HSTS, and compressed manifest static assets.
 - Runtime dependencies are pinned in `requirements.txt`; CI runs `pip-audit`.
+- The pinned runtime requirements passed `pip-audit -r requirements.txt` on 2026-10-21 with no known vulnerabilities reported; CI repeats the audit on pushes.
 
 `manage.py check --deploy` currently reports Django warnings W005 and W021 because HSTS subdomain coverage and preload have not been approved for a real domain/DNS topology. Review those settings before launch; they are not enabled by default against an unknown domain.
 

@@ -35,9 +35,9 @@
 
 - [ ] Complete points administration and giveaway system.
   - Acceptance: repeated qualification events do not double-credit; refunds use compensating entries.
-  - Implemented: configurable per-unit values, immutable order-line snapshots, idempotent paid-order credits, compensating partial/full reversals, permission-checked adjustments, and private paginated account history. Program defaults off.
+  - Implemented: configurable per-unit values, immutable order-line snapshots, idempotent paid-order credits, compensating partial/full reversals, private account history, and two-person adjustment requests/approvals with immutable audit events. Program defaults off.
   - Giveaway slice implemented: campaign rules and legal-review reference, separately authorized rule approval/activation, free entry with limits and idempotency, immutable entry and audit records, pool approval, and replayable cryptographic draw evidence. Feature defaults off.
-  - Still needed: approved points terms/values, refund/chargeback integration, adjustment request/approval UI, redemption policy, purchase/points entry hooks, winner notification and scheduled campaign operations, verified eligibility controls, and actual counsel approval.
+  - Still needed: approved points terms/values, refund/chargeback integration, redemption policy, purchase/points entry hooks, winner notification and scheduled campaign operations, verified eligibility controls, and actual counsel approval.
 - [ ] Complete verified-purchase review operations.
   - Implemented: paid-and-delivered order-line eligibility, customer submission/edit flow, one-review-per-line constraint, rolling-hour limit, approved-only public summaries, moderator permission checks, and immutable status-change audit events.
   - Still needed: approved review policy, customer abuse reporting and appeal path, and moderation operations/queue targets.

@@ -2,10 +2,11 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.db import IntegrityError, transaction
 from django.db.models import Sum
+from django.utils import timezone
 
 from commerce.models import Order
 
-from .models import PointEntry
+from .models import PointAdjustmentAuditEvent, PointAdjustmentRequest, PointEntry
 
 MAX_POINTS = 2**63 - 1
 
@@ -90,13 +91,13 @@ def reverse_point_entry(
     points: int,
     event_key: str,
     reason: str,
-    actor=None,
+    actor,
 ) -> PointEntry:
     """Add a partial or full compensating entry without editing the original."""
     event_key, reason = _validate_entry(event_key, reason)
     if type(points) is not int or not 1 <= points <= MAX_POINTS:
         raise PointsError("Choose a positive number of points to reverse.")
-    if actor is not None and not actor.has_perm("promotions.adjust_points"):
+    if actor is None or not actor.has_perm("promotions.adjust_points"):
         raise PermissionDenied("You do not have permission to reverse points.")
 
     with transaction.atomic():
@@ -134,52 +135,159 @@ def reverse_point_entry(
         )
 
 
-def adjust_points(
+def request_point_adjustment(
     customer,
     *,
     points: int,
     event_key: str,
-    actor,
+    requester,
     reason: str,
-) -> PointEntry:
-    """Record a permission-checked, auditable manual balance correction."""
+) -> PointAdjustmentRequest:
+    """Record an idempotent request that another staff member must resolve."""
     event_key, reason = _validate_entry(event_key, reason)
     if type(points) is not int or points == 0 or abs(points) > MAX_POINTS:
         raise PointsError("A manual adjustment must be a non-zero whole number of points.")
-    if actor is None or not actor.has_perm("promotions.adjust_points"):
-        raise PermissionDenied("You do not have permission to adjust points.")
+    if requester is None or not requester.has_perm("promotions.request_point_adjustment"):
+        raise PermissionDenied("You do not have permission to request a points adjustment.")
+    if requester.pk == customer.pk:
+        raise PointsError("Staff cannot request an adjustment to their own points balance.")
 
     with transaction.atomic():
         customer = type(customer).objects.select_for_update().get(pk=customer.pk)
-        existing = _existing_entry(
-            event_key,
-            customer=customer,
-            points=points,
-            event_type=PointEntry.EventType.ADJUSTMENT,
-            reason=reason,
-        )
+        existing = PointAdjustmentRequest.objects.filter(event_key=event_key).first()
         if existing is not None:
-            if existing.actor_id != actor.pk:
-                raise PointsError("That points event key belongs to another staff action.")
+            if (
+                existing.customer_id != customer.pk
+                or existing.points != points
+                or existing.reason != reason
+                or existing.requested_by_id != requester.pk
+            ):
+                raise PointsError("That adjustment key was already used for a different request.")
             return existing
+        if PointEntry.objects.filter(event_key=event_key).exists():
+            raise PointsError("That adjustment key is already used by the points ledger.")
         try:
             with transaction.atomic():
-                return PointEntry.objects.create(
+                adjustment = PointAdjustmentRequest.objects.create(
                     customer=customer,
-                    event_type=PointEntry.EventType.ADJUSTMENT,
                     points=points,
                     event_key=event_key,
-                    actor=actor,
                     reason=reason,
+                    requested_by=requester,
                 )
         except IntegrityError:
-            existing = _existing_entry(
-                event_key,
-                customer=customer,
-                points=points,
-                event_type=PointEntry.EventType.ADJUSTMENT,
-                reason=reason,
-            )
-            if existing is not None and existing.actor_id == actor.pk:
+            existing = PointAdjustmentRequest.objects.filter(event_key=event_key).first()
+            if (
+                existing is not None
+                and existing.customer_id == customer.pk
+                and existing.points == points
+                and existing.reason == reason
+                and existing.requested_by_id == requester.pk
+            ):
                 return existing
-            raise PointsError("That points event key was already used.")
+            raise PointsError("That adjustment key was already used for a different request.")
+        PointAdjustmentAuditEvent.objects.create(
+            adjustment=adjustment,
+            actor=requester,
+            event_type=PointAdjustmentAuditEvent.EventType.REQUESTED,
+            details={"customer_id": customer.pk, "points": points, "event_key": event_key},
+        )
+        return adjustment
+
+
+def approve_point_adjustment(
+    adjustment: PointAdjustmentRequest, *, approver
+) -> PointEntry:
+    """Post the ledger entry after an independent staff member approves it."""
+    if approver is None or not approver.has_perm("promotions.approve_point_adjustment"):
+        raise PermissionDenied("You do not have permission to approve points adjustments.")
+
+    with transaction.atomic():
+        locked = PointAdjustmentRequest.objects.select_for_update().get(pk=adjustment.pk)
+        if locked.status == PointAdjustmentRequest.Status.APPROVED:
+            return locked.ledger_entry
+        if locked.status != PointAdjustmentRequest.Status.PENDING:
+            raise PointsError("This adjustment request has already been rejected.")
+        if locked.requested_by_id == approver.pk:
+            raise PointsError("A different staff member must approve the adjustment.")
+
+        customer = type(locked.customer).objects.select_for_update().get(
+            pk=locked.customer_id
+        )
+        balance = get_points_balance(customer)
+        if not -MAX_POINTS <= balance + locked.points <= MAX_POINTS:
+            raise PointsError("This adjustment would exceed the supported points balance.")
+
+        if PointEntry.objects.filter(event_key=locked.event_key).exists():
+            raise PointsError("That points event key is already used by the ledger.")
+        try:
+            with transaction.atomic():
+                entry = PointEntry.objects.create(
+                    customer=customer,
+                    event_type=PointEntry.EventType.ADJUSTMENT,
+                    points=locked.points,
+                    event_key=locked.event_key,
+                    actor=approver,
+                    reason=locked.reason,
+                )
+        except IntegrityError as error:
+            raise PointsError("That points event key is already used by the ledger.") from error
+
+        now = timezone.now()
+        locked.status = PointAdjustmentRequest.Status.APPROVED
+        locked.resolved_by = approver
+        locked.ledger_entry = entry
+        locked.resolution_reason = "Approved."
+        locked.resolved_at = now
+        locked.save(
+            update_fields=(
+                "status",
+                "resolved_by",
+                "ledger_entry",
+                "resolution_reason",
+                "resolved_at",
+            )
+        )
+        PointAdjustmentAuditEvent.objects.create(
+            adjustment=locked,
+            actor=approver,
+            event_type=PointAdjustmentAuditEvent.EventType.APPROVED,
+            details={"ledger_entry_id": entry.pk, "points": entry.points},
+        )
+        return entry
+
+
+def reject_point_adjustment(
+    adjustment: PointAdjustmentRequest, *, reviewer, reason: str
+) -> PointAdjustmentRequest:
+    if reviewer is None or not reviewer.has_perm("promotions.approve_point_adjustment"):
+        raise PermissionDenied("You do not have permission to reject points adjustments.")
+    if not isinstance(reason, str) or not reason.strip() or len(reason.strip()) > 240:
+        raise PointsError("Provide a short reason for rejecting the adjustment.")
+
+    with transaction.atomic():
+        locked = PointAdjustmentRequest.objects.select_for_update().get(pk=adjustment.pk)
+        if locked.status == PointAdjustmentRequest.Status.REJECTED:
+            if locked.resolved_by_id == reviewer.pk and locked.resolution_reason == reason.strip():
+                return locked
+            raise PointsError("This adjustment request has already been resolved.")
+        if locked.status != PointAdjustmentRequest.Status.PENDING:
+            raise PointsError("An approved adjustment cannot be rejected.")
+        if locked.requested_by_id == reviewer.pk:
+            raise PointsError("A different staff member must reject the adjustment.")
+
+        now = timezone.now()
+        locked.status = PointAdjustmentRequest.Status.REJECTED
+        locked.resolved_by = reviewer
+        locked.resolution_reason = reason.strip()
+        locked.resolved_at = now
+        locked.save(
+            update_fields=("status", "resolved_by", "resolution_reason", "resolved_at")
+        )
+        PointAdjustmentAuditEvent.objects.create(
+            adjustment=locked,
+            actor=reviewer,
+            event_type=PointAdjustmentAuditEvent.EventType.REJECTED,
+            details={"reason": locked.resolution_reason},
+        )
+        return locked

@@ -22,7 +22,15 @@ from .models import (
     GiveawayDraw,
     GiveawayDrawApproval,
     GiveawayEntry,
+    PointAdjustmentAuditEvent,
+    PointAdjustmentRequest,
     PointEntry,
+)
+from .points import (
+    PointsError,
+    approve_point_adjustment,
+    reject_point_adjustment,
+    request_point_adjustment,
 )
 
 GIVEAWAY_PERMISSIONS = (
@@ -378,6 +386,199 @@ class GiveawayDrawAdmin(ImmutableGiveawayAdmin):
     )
 
 
+def _has_adjustment_request_permission(user):
+    return any(
+        user.has_perm(f"promotions.{permission}")
+        for permission in (
+            "request_point_adjustment",
+            "approve_point_adjustment",
+        )
+    )
+
+
+class PointAdjustmentAuditEventInline(admin.TabularInline):
+    model = PointAdjustmentAuditEvent
+    extra = 0
+    can_delete = False
+    fields = ("event_type", "actor", "details", "created_at")
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_view_permission(self, request, obj=None):
+        return _has_adjustment_request_permission(request.user)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PointAdjustmentRequest)
+class PointAdjustmentRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        "customer",
+        "points",
+        "status",
+        "requested_by",
+        "resolved_by",
+        "created_at",
+        "resolved_at",
+    )
+    list_filter = ("status", "created_at", "resolved_at")
+    search_fields = ("customer__email", "event_key", "reason", "requested_by__email")
+    fields = (
+        "customer",
+        "points",
+        "event_key",
+        "reason",
+        "requested_by",
+        "status",
+        "resolved_by",
+        "ledger_entry",
+        "resolution_reason",
+        "created_at",
+        "resolved_at",
+    )
+    readonly_fields = (
+        "requested_by",
+        "status",
+        "resolved_by",
+        "ledger_entry",
+        "resolution_reason",
+        "created_at",
+        "resolved_at",
+    )
+    inlines = (PointAdjustmentAuditEventInline,)
+    actions = ("approve_requests", "reject_requests")
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related(
+            "customer", "requested_by", "resolved_by", "ledger_entry"
+        )
+        if not request.user.has_perm("promotions.approve_point_adjustment"):
+            queryset = queryset.filter(requested_by=request.user)
+        return queryset
+
+    def has_module_permission(self, request):
+        return _has_adjustment_request_permission(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return _has_adjustment_request_permission(request.user)
+
+    def has_change_permission(self, request, obj=None):
+        return _has_adjustment_request_permission(request.user)
+
+    def has_add_permission(self, request):
+        return request.user.has_perm("promotions.request_point_adjustment")
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if obj is not None or not request.user.has_perm("promotions.request_point_adjustment"):
+            readonly.extend(
+                field for field in ("customer", "points", "event_key", "reason") if field not in readonly
+            )
+        return tuple(readonly)
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            if form.changed_data:
+                raise PermissionDenied("Adjustment requests cannot be edited after submission.")
+            return
+        adjustment = request_point_adjustment(
+            obj.customer,
+            points=obj.points,
+            event_key=obj.event_key,
+            requester=request.user,
+            reason=obj.reason,
+        )
+        obj.pk = adjustment.pk
+        obj.status = adjustment.status
+        obj.requested_by = adjustment.requested_by
+        obj.created_at = adjustment.created_at
+
+    @admin.action(description="Approve selected points adjustments", permissions=["approve_adjustments"])
+    def approve_requests(self, request, queryset):
+        for adjustment in queryset:
+            try:
+                approve_point_adjustment(adjustment, approver=request.user)
+            except (PointsError, PermissionDenied) as error:
+                self.message_user(
+                    request, f"{adjustment.event_key}: {error}", level=messages.ERROR
+                )
+            else:
+                self.message_user(request, f"Approved {adjustment.event_key}.")
+
+    def has_approve_adjustments_permission(self, request):
+        return request.user.has_perm("promotions.approve_point_adjustment")
+
+    @admin.action(
+        description="Reject selected points adjustments with a reason",
+        permissions=["approve_adjustments"],
+    )
+    def reject_requests(self, request, queryset):
+        if request.POST.get("apply") != "yes":
+            return render(
+                request,
+                "admin/promotions/pointadjustmentrequest/reject_selected.html",
+                {
+                    **self.admin_site.each_context(request),
+                    "title": "Reject selected point adjustments",
+                    "adjustments": queryset,
+                    "action_name": "reject_requests",
+                    "action_checkbox_name": helpers.ACTION_CHECKBOX_NAME,
+                    "index": request.POST.get("index", "0"),
+                    "select_across": request.POST.get("select_across", "0"),
+                    "opts": self.model._meta,
+                },
+            )
+        reason = request.POST.get("reason", "")
+        for adjustment in queryset:
+            try:
+                reject_point_adjustment(adjustment, reviewer=request.user, reason=reason)
+            except (PointsError, PermissionDenied) as error:
+                self.message_user(
+                    request, f"{adjustment.event_key}: {error}", level=messages.ERROR
+                )
+            else:
+                self.message_user(request, f"Rejected {adjustment.event_key}.")
+        return redirect(reverse("admin:promotions_pointadjustmentrequest_changelist"))
+
+
+@admin.register(PointAdjustmentAuditEvent)
+class PointAdjustmentAuditEventAdmin(admin.ModelAdmin):
+    list_display = ("adjustment", "event_type", "actor", "created_at")
+    list_filter = ("event_type", "created_at")
+    search_fields = ("adjustment__event_key", "adjustment__customer__email", "actor__email")
+    readonly_fields = ("adjustment", "actor", "event_type", "details", "created_at")
+
+    def has_module_permission(self, request):
+        return _has_adjustment_request_permission(request.user)
+
+    def has_view_permission(self, request, obj=None):
+        return _has_adjustment_request_permission(request.user)
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related("adjustment", "actor")
+        if not request.user.has_perm("promotions.approve_point_adjustment"):
+            queryset = queryset.filter(adjustment__requested_by=request.user)
+        return queryset
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(PointEntry)
 class PointEntryAdmin(admin.ModelAdmin):
     list_display = (
@@ -405,6 +606,33 @@ class PointEntryAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+    def has_module_permission(self, request):
+        return _has_adjustment_request_permission(request.user) or request.user.has_perm(
+            "promotions.adjust_points"
+        )
+
+    def has_view_permission(self, request, obj=None):
+        return _has_adjustment_request_permission(request.user) or request.user.has_perm(
+            "promotions.adjust_points"
+        )
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request).select_related(
+            "customer", "order", "order_line", "actor", "reversal_of"
+        )
+        if (
+            request.user.has_perm("promotions.request_point_adjustment")
+            and not request.user.has_perm("promotions.approve_point_adjustment")
+            and not request.user.has_perm("promotions.adjust_points")
+        ):
+            queryset = queryset.filter(
+                customer__point_adjustment_requests__requested_by=request.user
+            ).distinct()
+        return queryset
 
     def has_delete_permission(self, request, obj=None):
         return False

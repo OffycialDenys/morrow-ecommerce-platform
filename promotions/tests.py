@@ -1,6 +1,7 @@
 import uuid
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -13,12 +14,18 @@ from commerce.payments import (
     process_verified_payment_event,
 )
 from commerce.services import create_order_snapshot
-from promotions.models import PointEntry
+from promotions.models import (
+    PointAdjustmentAuditEvent,
+    PointAdjustmentRequest,
+    PointEntry,
+)
 from promotions.points import (
     PointsError,
-    adjust_points,
+    approve_point_adjustment,
     credit_paid_order_points,
     get_points_balance,
+    reject_point_adjustment,
+    request_point_adjustment,
     reverse_point_entry,
 )
 
@@ -118,6 +125,9 @@ class PointsServiceTests(TestCase):
     @override_settings(POINTS_PROGRAM_ENABLED=True)
     def test_partial_reversal_is_idempotent_and_cannot_exceed_earned_points(self):
         credit_paid_order_points(self.order)
+        actor = get_user_model().objects.create_superuser(
+            "reversal-admin@example.com", "Reversal-admin-safe-passphrase-96!"
+        )
         earned = PointEntry.objects.get(order=self.order)
 
         reversed_entry = reverse_point_entry(
@@ -125,12 +135,14 @@ class PointsServiceTests(TestCase):
             points=5,
             event_key="refund:order-line:1:part-1",
             reason="Partial refund",
+            actor=actor,
         )
         replay = reverse_point_entry(
             earned,
             points=5,
             event_key="refund:order-line:1:part-1",
             reason="Partial refund",
+            actor=actor,
         )
 
         self.assertEqual(reversed_entry.pk, replay.pk)
@@ -142,6 +154,38 @@ class PointsServiceTests(TestCase):
                 points=10,
                 event_key="refund:order-line:1:part-2",
                 reason="Over reversal",
+                actor=actor,
+            )
+
+    def test_reversal_requires_an_authorized_actor(self):
+        original = PointEntry.objects.create(
+            customer=self.user,
+            event_type=PointEntry.EventType.ADJUSTMENT,
+            points=5,
+            event_key="manual:reversible-entry",
+            reason="Test source entry",
+        )
+        staff = get_user_model().objects.create_user(
+            "unauthorized-reversal@example.com",
+            "Unauthorized-reversal-safe-passphrase-97!",
+            is_staff=True,
+        )
+
+        with self.assertRaises(PermissionDenied):
+            reverse_point_entry(
+                original,
+                points=1,
+                event_key="refund:unauthorized-1",
+                reason="Unauthorized reversal",
+                actor=staff,
+            )
+        with self.assertRaises(PermissionDenied):
+            reverse_point_entry(
+                original,
+                points=1,
+                event_key="refund:missing-actor-1",
+                reason="Missing actor reversal",
+                actor=None,
             )
 
     @override_settings(POINTS_PROGRAM_ENABLED=True)
@@ -155,42 +199,235 @@ class PointsServiceTests(TestCase):
         with self.assertRaises(ValidationError):
             PointEntry.objects.get(pk=entry.pk).delete()
 
-    def test_manual_adjustment_requires_the_dedicated_permission_and_reason(self):
+    def test_manual_adjustment_request_requires_the_dedicated_permission(self):
         staff = get_user_model().objects.create_user(
             "staff@example.com", "Another-safe-passphrase-85!", is_staff=True
         )
 
         with self.assertRaises(PermissionDenied):
-            adjust_points(
+            request_point_adjustment(
                 self.user,
                 points=10,
                 event_key="manual:unauthorized",
-                actor=staff,
+                requester=staff,
                 reason="Support adjustment",
             )
 
-    def test_authorized_manual_adjustment_is_idempotent(self):
-        staff = get_user_model().objects.create_superuser(
-            "admin@example.com", "Admin-safe-passphrase-87!"
+    def test_authorized_manual_adjustment_requires_independent_approval(self):
+        requester = get_user_model().objects.create_superuser(
+            "requester@example.com", "Requester-safe-passphrase-87!"
+        )
+        approver = get_user_model().objects.create_superuser(
+            "approver@example.com", "Approver-safe-passphrase-88!"
         )
 
-        entry = adjust_points(
+        adjustment = request_point_adjustment(
             self.user,
             points=10,
             event_key="manual:approved-1",
-            actor=staff,
+            requester=requester,
             reason="Approved support correction",
         )
-        replay = adjust_points(
+        replay_request = request_point_adjustment(
             self.user,
             points=10,
             event_key="manual:approved-1",
-            actor=staff,
+            requester=requester,
             reason="Approved support correction",
         )
+        self.assertEqual(adjustment.pk, replay_request.pk)
+        self.assertEqual(adjustment.status, PointAdjustmentRequest.Status.PENDING)
+        self.assertFalse(PointEntry.objects.exists())
+
+        with self.assertRaises(PointsError):
+            approve_point_adjustment(adjustment, approver=requester)
+
+        entry = approve_point_adjustment(adjustment, approver=approver)
+        replay = approve_point_adjustment(adjustment, approver=approver)
 
         self.assertEqual(entry.pk, replay.pk)
         self.assertEqual(get_points_balance(self.user), 10)
+        adjustment.refresh_from_db()
+        self.assertEqual(adjustment.status, PointAdjustmentRequest.Status.APPROVED)
+        self.assertEqual(adjustment.resolved_by_id, approver.pk)
+        self.assertEqual(adjustment.audit_events.count(), 2)
+        self.assertEqual(adjustment.ledger_entry_id, entry.pk)
+        with self.assertRaises(ValidationError):
+            adjustment.audit_events.update(event_type=PointAdjustmentAuditEvent.EventType.REJECTED)
+
+    def test_adjustment_request_details_cannot_be_changed_or_deleted(self):
+        requester = get_user_model().objects.create_superuser(
+            "immutable-requester@example.com", "Immutable-requester-safe-passphrase-93!"
+        )
+        adjustment = request_point_adjustment(
+            self.user,
+            points=10,
+            event_key="manual:immutable-request-1",
+            requester=requester,
+            reason="Original correction request",
+        )
+
+        adjustment.reason = "Changed after submission"
+        with self.assertRaises(ValidationError):
+            adjustment.save()
+        with self.assertRaises(ValidationError):
+            PointAdjustmentRequest.objects.filter(pk=adjustment.pk).update(points=20)
+        with self.assertRaises(ValidationError):
+            adjustment.delete()
+
+        adjustment.refresh_from_db()
+        self.assertEqual(adjustment.reason, "Original correction request")
+        self.assertEqual(adjustment.audit_events.count(), 1)
+
+    def test_approval_rejects_a_ledger_event_key_collision(self):
+        requester = get_user_model().objects.create_superuser(
+            "collision-requester@example.com", "Collision-requester-safe-passphrase-94!"
+        )
+        approver = get_user_model().objects.create_superuser(
+            "collision-approver@example.com", "Collision-approver-safe-passphrase-95!"
+        )
+        adjustment = request_point_adjustment(
+            self.user,
+            points=6,
+            event_key="manual:collision-1",
+            requester=requester,
+            reason="Correction request",
+        )
+        PointEntry.objects.create(
+            customer=self.user,
+            event_type=PointEntry.EventType.ADJUSTMENT,
+            points=6,
+            event_key=adjustment.event_key,
+            actor=approver,
+            reason=adjustment.reason,
+        )
+
+        with self.assertRaises(PointsError):
+            approve_point_adjustment(adjustment, approver=approver)
+
+        adjustment.refresh_from_db()
+        self.assertEqual(adjustment.status, PointAdjustmentRequest.Status.PENDING)
+        self.assertIsNone(adjustment.ledger_entry_id)
+        self.assertEqual(adjustment.audit_events.count(), 1)
+
+    def test_rejected_adjustment_is_audited_without_a_ledger_entry(self):
+        requester = get_user_model().objects.create_superuser(
+            "reject-requester@example.com", "Reject-requester-safe-passphrase-89!"
+        )
+        reviewer = get_user_model().objects.create_superuser(
+            "reject-reviewer@example.com", "Reject-reviewer-safe-passphrase-90!"
+        )
+        adjustment = request_point_adjustment(
+            self.user,
+            points=-4,
+            event_key="manual:rejected-1",
+            requester=requester,
+            reason="Correction requested by support.",
+        )
+
+        with self.assertRaises(PointsError):
+            reject_point_adjustment(adjustment, reviewer=requester, reason="Not approved.")
+        rejected = reject_point_adjustment(
+            adjustment, reviewer=reviewer, reason="Evidence was incomplete."
+        )
+
+        self.assertEqual(rejected.status, PointAdjustmentRequest.Status.REJECTED)
+        self.assertIsNone(rejected.ledger_entry_id)
+        self.assertEqual(rejected.audit_events.count(), 2)
+        self.assertEqual(get_points_balance(self.user), 0)
+
+    def test_adjustment_admin_exposes_request_and_approval_as_separate_actions(self):
+        requester = get_user_model().objects.create_user(
+            "admin-requester@example.com", "Admin-requester-safe-passphrase-91!", is_staff=True
+        )
+        approver = get_user_model().objects.create_user(
+            "admin-approver@example.com", "Admin-approver-safe-passphrase-92!", is_staff=True
+        )
+        request_permission = Permission.objects.get(
+            content_type__app_label="promotions", codename="request_point_adjustment"
+        )
+        approve_permission = Permission.objects.get(
+            content_type__app_label="promotions", codename="approve_point_adjustment"
+        )
+        requester.user_permissions.add(request_permission)
+        approver.user_permissions.add(approve_permission)
+        add_url = reverse("admin:promotions_pointadjustmentrequest_add")
+        self.client.force_login(requester)
+
+        response = self.client.post(
+            add_url,
+            {
+                "customer": self.user.pk,
+                "points": "6",
+                "event_key": "manual:admin-flow-1",
+                "reason": "Approved support correction",
+                "_save": "Save",
+                "audit_events-TOTAL_FORMS": "0",
+                "audit_events-INITIAL_FORMS": "0",
+                "audit_events-MIN_NUM_FORMS": "0",
+                "audit_events-MAX_NUM_FORMS": "1000",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        adjustment = PointAdjustmentRequest.objects.get(event_key="manual:admin-flow-1")
+        self.assertEqual(adjustment.status, PointAdjustmentRequest.Status.PENDING)
+
+        self.client.force_login(approver)
+        response = self.client.post(
+            reverse("admin:promotions_pointadjustmentrequest_changelist"),
+            {
+                "action": "approve_requests",
+                "index": "0",
+                "_selected_action": str(adjustment.pk),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        adjustment.refresh_from_db()
+        self.assertEqual(adjustment.status, PointAdjustmentRequest.Status.APPROVED)
+        self.assertEqual(adjustment.ledger_entry.points, 6)
+        self.assertEqual(
+            PointAdjustmentAuditEvent.objects.filter(adjustment=adjustment).count(), 2
+        )
+
+        rejected_adjustment = request_point_adjustment(
+            self.user,
+            points=-2,
+            event_key="manual:admin-flow-rejection-1",
+            requester=requester,
+            reason="A second support correction",
+        )
+        list_url = reverse("admin:promotions_pointadjustmentrequest_changelist")
+        response = self.client.post(
+            list_url,
+            {
+                "action": "reject_requests",
+                "index": "0",
+                "_selected_action": str(rejected_adjustment.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Reason for rejection")
+
+        response = self.client.post(
+            list_url,
+            {
+                "action": "reject_requests",
+                "index": "0",
+                "select_across": "0",
+                "_selected_action": str(rejected_adjustment.pk),
+                "apply": "yes",
+                "reason": "The support evidence did not match the account.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        rejected_adjustment.refresh_from_db()
+        self.assertEqual(rejected_adjustment.status, PointAdjustmentRequest.Status.REJECTED)
+        self.assertEqual(
+            rejected_adjustment.resolution_reason,
+            "The support evidence did not match the account.",
+        )
 
     def test_customer_points_page_is_private_and_shows_their_ledger(self):
         other = get_user_model().objects.create_user(

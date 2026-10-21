@@ -73,7 +73,7 @@ class PointEntry(models.Model):
             models.Index(fields=("order", "event_type"), name="prom_entry_order_type_idx"),
         ]
         permissions = [
-            ("adjust_points", "Can create manual points adjustments"),
+            ("adjust_points", "Can reverse points ledger entries"),
         ]
 
     def __str__(self) -> str:
@@ -331,3 +331,179 @@ class GiveawayDrawApproval(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Giveaway draw approvals cannot be deleted.")
+
+
+class PointAdjustmentRequestQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Point adjustment requests cannot be changed directly.")
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError("Point adjustment requests cannot be changed directly.")
+
+    def delete(self):
+        raise ValidationError("Point adjustment requests cannot be deleted.")
+
+
+class PointAdjustmentRequest(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending approval"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="point_adjustment_requests",
+    )
+    points = models.BigIntegerField()
+    event_key = models.CharField(max_length=200, unique=True)
+    reason = models.CharField(max_length=240)
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="requested_point_adjustments",
+    )
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="resolved_point_adjustments",
+        null=True,
+        blank=True,
+    )
+    ledger_entry = models.OneToOneField(
+        PointEntry,
+        on_delete=models.PROTECT,
+        related_name="adjustment_request",
+        null=True,
+        blank=True,
+    )
+    resolution_reason = models.CharField(max_length=240, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    objects = PointAdjustmentRequestQuerySet.as_manager()
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+        constraints = [
+            models.CheckConstraint(condition=~Q(points=0), name="prom_adjustment_nonzero"),
+            models.CheckConstraint(
+                condition=Q(resolved_by__isnull=True) | ~Q(resolved_by=F("requested_by")),
+                name="prom_adjustment_distinct_staff",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        status="pending",
+                        resolved_by__isnull=True,
+                        resolved_at__isnull=True,
+                        ledger_entry__isnull=True,
+                    )
+                    | Q(
+                        status="approved",
+                        resolved_by__isnull=False,
+                        resolved_at__isnull=False,
+                        ledger_entry__isnull=False,
+                    )
+                    | Q(
+                        status="rejected",
+                        resolved_by__isnull=False,
+                        resolved_at__isnull=False,
+                        ledger_entry__isnull=True,
+                    )
+                ),
+                name="prom_adjustment_resolution_consistent",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("status", "created_at"), name="prom_adjust_status_recent_idx"),
+            models.Index(fields=("customer", "created_at"), name="prom_adj_customer_recent_idx"),
+        ]
+        permissions = [
+            ("request_point_adjustment", "Can request a manual points adjustment"),
+            ("approve_point_adjustment", "Can approve or reject a manual points adjustment"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.points:+} points requested for {self.customer} ({self.status})"
+
+    def save(self, *args, **kwargs):
+        if self.pk is None:
+            if self.status != self.Status.PENDING or any(
+                value is not None
+                for value in (self.resolved_by_id, self.ledger_entry_id, self.resolved_at)
+            ):
+                raise ValidationError("A new points adjustment must be pending approval.")
+            if self.resolution_reason:
+                raise ValidationError("A new points adjustment cannot have a resolution reason.")
+            return super().save(*args, **kwargs)
+
+        previous = type(self).objects.filter(pk=self.pk).first()
+        if previous is None:
+            raise ValidationError("A points adjustment request cannot be re-created.")
+        immutable_fields = (
+            "customer_id",
+            "points",
+            "event_key",
+            "reason",
+            "requested_by_id",
+            "created_at",
+        )
+        if any(getattr(self, field) != getattr(previous, field) for field in immutable_fields):
+            raise ValidationError("Submitted points adjustment details cannot be changed.")
+        if previous.status != self.Status.PENDING or self.status not in (
+            self.Status.APPROVED,
+            self.Status.REJECTED,
+        ):
+            raise ValidationError("A resolved points adjustment cannot be changed again.")
+        if self.resolved_by_id == self.requested_by_id:
+            raise ValidationError("A different staff member must resolve the adjustment.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Point adjustment requests cannot be deleted.")
+
+
+class ImmutablePointAdjustmentEventQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Point adjustment history cannot be changed.")
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError("Point adjustment history cannot be changed.")
+
+    def delete(self):
+        raise ValidationError("Point adjustment history cannot be deleted.")
+
+
+class PointAdjustmentAuditEvent(models.Model):
+    class EventType(models.TextChoices):
+        REQUESTED = "requested", "Adjustment requested"
+        APPROVED = "approved", "Adjustment approved"
+        REJECTED = "rejected", "Adjustment rejected"
+
+    adjustment = models.ForeignKey(
+        PointAdjustmentRequest, on_delete=models.PROTECT, related_name="audit_events"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="point_adjustment_audit_events"
+    )
+    event_type = models.CharField(max_length=12, choices=EventType.choices)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ImmutablePointAdjustmentEventQuerySet.as_manager()
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+
+    def __str__(self) -> str:
+        return f"{self.get_event_type_display()} for {self.adjustment}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Point adjustment history cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Point adjustment history cannot be deleted.")

@@ -1,0 +1,21 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>The adjustment requester cannot reject their own request. A reason is stored in the audit history.</p>
+  <ul>
+    {% for adjustment in adjustments %}
+      <li>{{ adjustment.event_key }} — {{ adjustment.points }} points for {{ adjustment.customer }}</li>
+    {% endfor %}
+  </ul>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="index" value="{{ index }}">
+    <input type="hidden" name="select_across" value="{{ select_across }}">
+    {% for adjustment in adjustments %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ adjustment.pk }}">{% endfor %}
+    <label for="rejection-reason">Reason for rejection</label>
+    <textarea id="rejection-reason" name="reason" rows="4" maxlength="240" required></textarea>
+    <input type="hidden" name="apply" value="yes">
+    <button type="submit" class="button">Reject selected requests</button>
+  </form>
+{% endblock %}

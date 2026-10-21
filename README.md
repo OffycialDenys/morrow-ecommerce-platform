@@ -56,7 +56,7 @@ This Compose file is for local development only. It runs Django's development se
 - Server-derived cart totals, variant availability checks, quantity caps, mixed-currency protection, and supplier-stock freshness checks.
 - Internal idempotent order snapshot service, immutable line pricing, distinct payment/fulfillment fields, and owner-scoped order history.
 - Stripe Checkout and PayPal Orders v2 server adapters, signed webhook endpoints, provider transaction IDs, and internal idempotent payment state handling; customer checkout remains disabled pending store rules and sandbox verification.
-- Immutable per-unit points ledger, paid-order idempotency, compensating reversals, and owner-scoped points history; rewards stay disabled until their terms are approved.
+- Immutable per-unit points ledger, paid-order idempotency, compensating reversals, owner-scoped history, and two-person adjustment requests; rewards stay disabled until their terms are approved.
 - Delivered-purchase reviews with customer edits, pending moderation, audited moderator decisions, and approved-only product summaries.
 - Giveaway drafts, separately approved rules and activation, limited free entry, immutable ticket/audit records, and independently approved cryptographic drawings; all public giveaway flows default off.
 - Responsive original storefront design, autoescaped product descriptions, health endpoints, and browser security headers.

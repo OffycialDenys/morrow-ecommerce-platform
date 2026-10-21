@@ -59,7 +59,9 @@ class ProductReview(models.Model):
             ),
         ]
         indexes = [
-            models.Index(fields=("product", "status", "-created_at"), name="reviews_prod_public_idx"),
+            models.Index(
+                fields=("product", "status", "-created_at"), name="reviews_prod_public_idx"
+            ),
             models.Index(fields=("customer", "-updated_at"), name="reviews_customer_recent_idx"),
         ]
         permissions = [
@@ -83,6 +85,13 @@ class ReviewModerationEvent(models.Model):
     )
     reason = models.CharField(max_length=240)
     created_at = models.DateTimeField(auto_now_add=True)
+    appeal = models.OneToOneField(
+        "ReviewAppeal",
+        on_delete=models.PROTECT,
+        related_name="moderation_event",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         ordering = ("-created_at", "-pk")
@@ -128,3 +137,175 @@ class ReviewSubmissionEvent(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Review submission history cannot be deleted.")
+
+
+class ReviewReport(models.Model):
+    class Category(models.TextChoices):
+        INAPPROPRIATE = "inappropriate", "Inappropriate content"
+        SPAM = "spam", "Spam or advertising"
+        IRRELEVANT = "irrelevant", "Not about this product"
+        OTHER = "other", "Other concern"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        ACTION_TAKEN = "action_taken", "Action taken"
+        DISMISSED = "dismissed", "Dismissed"
+
+    review = models.ForeignKey(ProductReview, on_delete=models.PROTECT, related_name="reports")
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="review_reports"
+    )
+    category = models.CharField(max_length=20, choices=Category.choices)
+    details = models.TextField(max_length=1000, blank=True)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN)
+    resolution_note = models.CharField(max_length=240, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="resolved_review_reports",
+        null=True,
+        blank=True,
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("status", "created_at", "pk")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("review", "reporter"), name="reviews_report_per_customer_unique"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        status="open",
+                        resolved_by__isnull=True,
+                        resolved_at__isnull=True,
+                        resolution_note="",
+                    )
+                    | Q(
+                        status__in=("action_taken", "dismissed"),
+                        resolved_by__isnull=False,
+                        resolved_at__isnull=False,
+                        resolution_note__gt="",
+                    )
+                ),
+                name="reviews_report_resolution_consistent",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("status", "created_at"), name="reviews_report_queue_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_category_display()} report for {self.review}"
+
+
+class ReviewReportEvent(models.Model):
+    report = models.ForeignKey(ReviewReport, on_delete=models.PROTECT, related_name="events")
+    previous_status = models.CharField(max_length=12, choices=ReviewReport.Status.choices)
+    new_status = models.CharField(max_length=12, choices=ReviewReport.Status.choices)
+    moderator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="review_report_events",
+    )
+    reason = models.CharField(max_length=240)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ImmutableReviewEventQuerySet.as_manager()
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+
+    def __str__(self) -> str:
+        return f"{self.previous_status} → {self.new_status} for report {self.report_id}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Review report history cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Review report history cannot be deleted.")
+
+
+class ReviewAppeal(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Awaiting review"
+        REOPENED = "reopened", "Reopened for moderation"
+        UPHELD = "upheld", "Original decision upheld"
+
+    review = models.OneToOneField(ProductReview, on_delete=models.PROTECT, related_name="appeal")
+    customer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="review_appeals"
+    )
+    reason = models.TextField(max_length=1200)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    resolution_note = models.CharField(max_length=240, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="resolved_review_appeals",
+        null=True,
+        blank=True,
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("status", "created_at", "pk")
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    Q(
+                        status="pending",
+                        resolved_by__isnull=True,
+                        resolved_at__isnull=True,
+                        resolution_note="",
+                    )
+                    | Q(
+                        status__in=("reopened", "upheld"),
+                        resolved_by__isnull=False,
+                        resolved_at__isnull=False,
+                        resolution_note__gt="",
+                    )
+                ),
+                name="reviews_appeal_resolution_consistent",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("status", "created_at"), name="reviews_appeal_queue_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Appeal for {self.review} ({self.get_status_display()})"
+
+
+class ReviewAppealEvent(models.Model):
+    appeal = models.ForeignKey(ReviewAppeal, on_delete=models.PROTECT, related_name="events")
+    previous_status = models.CharField(max_length=12, choices=ReviewAppeal.Status.choices)
+    new_status = models.CharField(max_length=12, choices=ReviewAppeal.Status.choices)
+    moderator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="review_appeal_events",
+    )
+    reason = models.CharField(max_length=240)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ImmutableReviewEventQuerySet.as_manager()
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+
+    def __str__(self) -> str:
+        return f"{self.previous_status} → {self.new_status} for appeal {self.appeal_id}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Review appeal history cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Review appeal history cannot be deleted.")

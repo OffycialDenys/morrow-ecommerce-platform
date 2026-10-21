@@ -8,7 +8,7 @@ The platform is a Django modular monolith. Server-rendered HTML is the primary s
 - `catalog`: categories, products, variants, media references, supplier identifiers, publication, and observed availability.
 - `commerce`: cart calculations, order snapshots, payment attempts/events, provider adapters, payment state, and fulfillment state.
 - `promotions`: points ledger, reversals, giveaway configuration, entry records, and drawing audit.
-- `reviews`: verified-purchase eligibility, review submission, moderation, and rating summaries.
+- `reviews`: verified-purchase eligibility, review submission, moderation, abuse reports, owner appeals, and rating summaries.
 - AliExpress synchronization remains a planned integration boundary until authorized API access and contracts are available.
 - `storefront`: presentation and request orchestration; business calculations stay in domain services.
 - `config`: environment configuration, URL routing, and production defaults.

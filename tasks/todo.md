@@ -42,8 +42,8 @@
   - Giveaway slice implemented: campaign rules and legal-review reference, separately authorized rule approval/activation, free entry with limits and idempotency, immutable entry and audit records, pool approval, and replayable cryptographic draw evidence. Feature defaults off.
   - Still needed: approved points terms/values, refund/chargeback integration, redemption policy, purchase/points entry hooks, winner notification and scheduled campaign operations, verified eligibility controls, and actual counsel approval.
 - [ ] Complete verified-purchase review operations.
-  - Implemented: paid-and-delivered order-line eligibility, customer submission/edit flow, one-review-per-line constraint, rolling-hour limit, approved-only public summaries, moderator permission checks, and immutable status-change audit events.
-  - Still needed: approved review policy, customer abuse reporting and appeal path, and moderation operations/queue targets.
+  - Implemented: paid-and-delivered order-line eligibility, customer submission/edit flow, one-review-per-line constraint, rolling-hour limit, approved-only public summaries, moderator permission checks, immutable moderation events, customer abuse reports, owner appeals, and permission-gated resolution queues.
+  - Still needed: approved review policy, repeat-abuse controls, queue service targets/alerts, moderation staffing, retention rules, and any incentive disclosures.
 - [ ] Complete provider setup, deployment/backup rehearsal, security/performance/accessibility checks, and final report.
   - Acceptance: every launch gate has evidence or a named blocker.
   - Verify: security scan, regression suite, Lighthouse methodology, restore rehearsal, and provider sandbox records.

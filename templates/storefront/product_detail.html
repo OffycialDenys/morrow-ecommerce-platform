@@ -49,6 +49,7 @@
           <p class="review-rating" aria-label="Rated {{ review.rating }} out of 5">{{ review.rating }} / 5</p>
           <p class="review-body">{{ review.body|linebreaksbr }}</p>
           <p class="review-byline">Verified buyer · {{ review.created_at|date:"F j, Y" }}</p>
+          {% if user.is_authenticated and review.customer_id != user.id %}<a class="text-link" href="{% url 'reviews:report' review.pk %}">Report this review</a>{% endif %}
         </article>
       {% endfor %}
     </div>

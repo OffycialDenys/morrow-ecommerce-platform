@@ -20,7 +20,7 @@ from catalog.models import Product
 from commerce.models import Order
 from promotions.models import PointEntry
 from promotions.points import get_points_balance
-from reviews.models import ProductReview
+from reviews.models import ProductReview, ReviewAppeal
 
 from .forms import RegistrationForm
 from .models import SavedProduct
@@ -122,9 +122,11 @@ def order_detail(request, order_number):
     lines = list(order.lines.all())
     reviews_by_line = {
         review.order_line_id: review
-        for review in ProductReview.objects.filter(
-            order_line__in=lines, customer=request.user
-        )
+        for review in ProductReview.objects.filter(order_line__in=lines, customer=request.user)
+    }
+    review_ids = [review.pk for review in reviews_by_line.values()]
+    appeals_by_review = {
+        appeal.review_id: appeal for appeal in ReviewAppeal.objects.filter(review_id__in=review_ids)
     }
     review_eligible = (
         order.payment_status == Order.PaymentStatus.PAID
@@ -132,6 +134,11 @@ def order_detail(request, order_number):
     )
     for line in lines:
         line.customer_review = reviews_by_line.get(line.pk)
+        line.customer_appeal = (
+            appeals_by_review.get(line.customer_review.pk)
+            if line.customer_review is not None
+            else None
+        )
         line.review_eligible = review_eligible and line.variant_id is not None
     return render(
         request,

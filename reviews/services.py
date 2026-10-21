@@ -3,13 +3,21 @@ from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count
 from django.utils import timezone
 
 from commerce.models import Order, OrderLine
 
-from .models import ProductReview, ReviewModerationEvent, ReviewSubmissionEvent
+from .models import (
+    ProductReview,
+    ReviewAppeal,
+    ReviewAppealEvent,
+    ReviewModerationEvent,
+    ReviewReport,
+    ReviewReportEvent,
+    ReviewSubmissionEvent,
+)
 
 MIN_REVIEW_LENGTH = 20
 MAX_REVIEW_LENGTH = 2000
@@ -34,6 +42,23 @@ def _clean_review(rating: int, body: str) -> tuple[int, str]:
             f"Review text must contain between {MIN_REVIEW_LENGTH} and {MAX_REVIEW_LENGTH} characters."
         )
     return rating, body
+
+
+def _clean_resolution_reason(reason: str) -> str:
+    if not isinstance(reason, str):
+        raise ReviewError("A resolution reason is required.")
+    cleaned = reason.strip()
+    if (
+        not cleaned
+        or len(cleaned) > 240
+        or any(ord(character) < 32 and character not in "\n\r\t" for character in cleaned)
+    ):
+        raise ReviewError("The resolution reason is invalid.")
+    try:
+        cleaned.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ReviewError("The resolution reason is invalid.") from error
+    return cleaned
 
 
 def is_review_eligible(line: OrderLine, customer) -> bool:
@@ -74,6 +99,13 @@ def submit_review(customer, *, order_line_id: int, rating: int, body: str) -> Pr
                 raise ReviewError("This order line already has a different customer's review.")
             if existing.status == ProductReview.Status.HIDDEN:
                 raise ReviewError("This review cannot be edited.")
+            if (
+                existing.status == ProductReview.Status.REJECTED
+                and ReviewAppeal.objects.filter(
+                    review=existing, status=ReviewAppeal.Status.PENDING
+                ).exists()
+            ):
+                raise ReviewError("Wait for the pending appeal before editing this review.")
             existing.rating = rating
             existing.body = body
             existing.status = ProductReview.Status.PENDING
@@ -103,6 +135,80 @@ def submit_review(customer, *, order_line_id: int, rating: int, body: str) -> Pr
         )
         ReviewSubmissionEvent.objects.create(review=review, customer=customer)
         return review
+
+
+def report_review(reporter, *, review_id: int, category: str, details: str = "") -> ReviewReport:
+    if not getattr(reporter, "is_authenticated", False) or reporter.pk is None:
+        raise ReviewError("Sign in before reporting a review.")
+    if category not in ReviewReport.Category.values:
+        raise ReviewError("Choose an available report reason.")
+    if not isinstance(details, str):
+        raise ReviewError("Additional details must be text.")
+    details = details.strip()
+    if len(details) > 1000:
+        raise ReviewError("Additional details are too long.")
+    if any(ord(character) < 32 and character not in "\n\r\t" for character in details):
+        raise ReviewError("Additional details contain unsupported characters.")
+    try:
+        details.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ReviewError("Additional details contain unsupported characters.") from error
+
+    try:
+        with transaction.atomic():
+            review = (
+                ProductReview.objects.select_for_update()
+                .select_related("customer")
+                .filter(pk=review_id, status=ProductReview.Status.APPROVED)
+                .first()
+            )
+            if review is None:
+                raise ReviewError("This review is not available to report.")
+            if review.customer_id == reporter.pk:
+                raise ReviewError("You cannot report your own review.")
+            return ReviewReport.objects.create(
+                review=review,
+                reporter=reporter,
+                category=category,
+                details=details,
+            )
+    except IntegrityError as error:
+        raise ReviewError("You have already reported this review.") from error
+
+
+def appeal_review(customer, *, review_id: int, reason: str) -> ReviewAppeal:
+    if not getattr(customer, "is_authenticated", False) or customer.pk is None:
+        raise ReviewError("Sign in with the account that wrote the review.")
+    if not isinstance(reason, str):
+        raise ReviewError("Explain why you are appealing this decision.")
+    reason = reason.strip()
+    if not 30 <= len(reason) <= 1200:
+        raise ReviewError("An appeal must contain between 30 and 1,200 characters.")
+    if any(ord(character) < 32 and character not in "\n\r\t" for character in reason):
+        raise ReviewError("The appeal contains unsupported characters.")
+    try:
+        reason.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise ReviewError("The appeal contains unsupported characters.") from error
+
+    try:
+        with transaction.atomic():
+            review = (
+                ProductReview.objects.select_for_update()
+                .filter(pk=review_id, customer=customer)
+                .first()
+            )
+            if review is None:
+                raise ReviewError("This review cannot be appealed from this account.")
+            if review.status not in {ProductReview.Status.REJECTED, ProductReview.Status.HIDDEN}:
+                raise ReviewError("Only a rejected or hidden review can be appealed.")
+            return ReviewAppeal.objects.create(
+                review=review,
+                customer=customer,
+                reason=reason,
+            )
+    except IntegrityError as error:
+        raise ReviewError("An appeal has already been submitted for this review.") from error
 
 
 def moderate_review(review: ProductReview, *, status: str, moderator, reason: str):
@@ -142,6 +248,94 @@ def moderate_review(review: ProductReview, *, status: str, moderator, reason: st
                 "moderated_at",
             )
         )
+        return locked
+
+
+def resolve_review_report(
+    report: ReviewReport, *, status: str, moderator, reason: str
+) -> ReviewReport:
+    if moderator is None or not moderator.has_perm("reviews.moderate_review"):
+        raise PermissionDenied("You do not have permission to resolve review reports.")
+    if status not in {ReviewReport.Status.ACTION_TAKEN, ReviewReport.Status.DISMISSED}:
+        raise ReviewError("Choose an available report outcome.")
+    reason = _clean_resolution_reason(reason)
+
+    with transaction.atomic():
+        locked = ReviewReport.objects.select_for_update().select_related("review").get(pk=report.pk)
+        if locked.status != ReviewReport.Status.OPEN:
+            raise ReviewError("This report has already been resolved.")
+        if status == ReviewReport.Status.ACTION_TAKEN and (
+            locked.review.status == ProductReview.Status.APPROVED
+        ):
+            raise ReviewError("Moderate the reported review before recording action taken.")
+
+        event = ReviewReportEvent.objects.create(
+            report=locked,
+            previous_status=locked.status,
+            new_status=status,
+            moderator=moderator,
+            reason=reason,
+        )
+        locked.status = status
+        locked.resolution_note = reason
+        locked.resolved_by = moderator
+        locked.resolved_at = event.created_at
+        locked.save(update_fields=("status", "resolution_note", "resolved_by", "resolved_at"))
+        return locked
+
+
+def resolve_review_appeal(
+    appeal: ReviewAppeal, *, status: str, moderator, reason: str
+) -> ReviewAppeal:
+    if moderator is None or not moderator.has_perm("reviews.moderate_review"):
+        raise PermissionDenied("You do not have permission to resolve review appeals.")
+    if status not in {ReviewAppeal.Status.REOPENED, ReviewAppeal.Status.UPHELD}:
+        raise ReviewError("Choose an available appeal outcome.")
+    reason = _clean_resolution_reason(reason)
+
+    with transaction.atomic():
+        locked = ReviewAppeal.objects.select_for_update().select_related("review").get(pk=appeal.pk)
+        review = ProductReview.objects.select_for_update().get(pk=locked.review_id)
+        if locked.status != ReviewAppeal.Status.PENDING:
+            raise ReviewError("This appeal has already been resolved.")
+        if review.status not in {ProductReview.Status.REJECTED, ProductReview.Status.HIDDEN}:
+            raise ReviewError("This review's moderation decision cannot be appealed.")
+
+        if status == ReviewAppeal.Status.REOPENED:
+            ReviewModerationEvent.objects.create(
+                review=review,
+                appeal=locked,
+                previous_status=review.status,
+                new_status=ProductReview.Status.PENDING,
+                moderator=moderator,
+                reason=reason,
+            )
+            review.status = ProductReview.Status.PENDING
+            review.moderation_reason = ""
+            review.moderated_by = None
+            review.moderated_at = None
+            review.save(
+                update_fields=(
+                    "status",
+                    "moderation_reason",
+                    "moderated_by",
+                    "moderated_at",
+                    "updated_at",
+                )
+            )
+
+        event = ReviewAppealEvent.objects.create(
+            appeal=locked,
+            previous_status=locked.status,
+            new_status=status,
+            moderator=moderator,
+            reason=reason,
+        )
+        locked.status = status
+        locked.resolution_note = reason
+        locked.resolved_by = moderator
+        locked.resolved_at = event.created_at
+        locked.save(update_fields=("status", "resolution_note", "resolved_by", "resolved_at"))
         return locked
 
 

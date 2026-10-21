@@ -9,12 +9,24 @@ from django.urls import reverse
 from catalog.models import Product, ProductVariant
 from commerce.models import Order
 from commerce.services import create_order_snapshot
-from reviews.models import ProductReview, ReviewSubmissionEvent
+from reviews.models import (
+    ProductReview,
+    ReviewAppeal,
+    ReviewAppealEvent,
+    ReviewModerationEvent,
+    ReviewReport,
+    ReviewReportEvent,
+    ReviewSubmissionEvent,
+)
 from reviews.services import (
     ReviewError,
     ReviewRateLimited,
+    appeal_review,
     moderate_review,
     product_review_summary,
+    report_review,
+    resolve_review_appeal,
+    resolve_review_report,
     submit_review,
 )
 
@@ -51,6 +63,40 @@ class ProductReviewTests(TestCase):
         self.order.fulfillment_status = Order.FulfillmentStatus.DELIVERED
         self.order.save(update_fields=("payment_status", "fulfillment_status"))
         self.order_line = self.order.lines.get()
+
+    def _new_delivered_order_line(self):
+        order = create_order_snapshot(
+            self.customer,
+            {"cart_items": {str(self.variant.pk): 1}},
+            idempotency_key=uuid.uuid4(),
+            shipping_minor=0,
+            tax_minor=0,
+            currency="USD",
+        )
+        order.payment_status = Order.PaymentStatus.PAID
+        order.fulfillment_status = Order.FulfillmentStatus.DELIVERED
+        order.save(update_fields=("payment_status", "fulfillment_status"))
+        return order.lines.get()
+
+    def _make_moderated_review(self, status, *, order_line=None):
+        order_line = order_line or self.order_line
+        review = submit_review(
+            self.customer,
+            order_line_id=order_line.pk,
+            rating=5,
+            body="Lovely handmade bowl with a beautiful glaze.",
+        )
+        moderator = get_user_model().objects.create_superuser(
+            f"moderator-{status}@example.com", "Moderator-safe-passphrase-111!"
+        )
+        moderate_review(
+            review,
+            status=status,
+            moderator=moderator,
+            reason="Reviewed against the store policy.",
+        )
+        review.refresh_from_db()
+        return review, moderator
 
     def test_unpaid_or_undelivered_orders_are_not_eligible(self):
         self.order.fulfillment_status = Order.FulfillmentStatus.PROCESSING
@@ -318,3 +364,212 @@ class ProductReviewTests(TestCase):
 
         self.assertContains(response, "&lt;script&gt;")
         self.assertNotContains(response, "<script>alert")
+
+    def test_customer_can_report_another_customers_published_review_once(self):
+        review, _moderator = self._make_moderated_review(ProductReview.Status.APPROVED)
+
+        report = report_review(
+            self.other_customer,
+            review_id=review.pk,
+            category=ReviewReport.Category.SPAM,
+            details="This review includes an unrelated promotional link.",
+        )
+
+        self.assertEqual(report.status, ReviewReport.Status.OPEN)
+        self.assertEqual(report.reporter_id, self.other_customer.pk)
+        self.assertEqual(report.details, "This review includes an unrelated promotional link.")
+        with self.assertRaises(ReviewError):
+            report_review(
+                self.other_customer,
+                review_id=review.pk,
+                category=ReviewReport.Category.SPAM,
+            )
+        with self.assertRaises(ReviewError):
+            report_review(
+                self.customer,
+                review_id=review.pk,
+                category=ReviewReport.Category.SPAM,
+            )
+
+    def test_report_action_requires_review_moderation_and_leaves_audit_event(self):
+        review, moderator = self._make_moderated_review(ProductReview.Status.APPROVED)
+        report = report_review(
+            self.other_customer,
+            review_id=review.pk,
+            category=ReviewReport.Category.INAPPROPRIATE,
+        )
+
+        with self.assertRaises(PermissionDenied):
+            resolve_review_report(
+                report,
+                status=ReviewReport.Status.DISMISSED,
+                moderator=self.other_customer,
+                reason="Not a policy violation.",
+            )
+        with self.assertRaises(ReviewError):
+            resolve_review_report(
+                report,
+                status=ReviewReport.Status.ACTION_TAKEN,
+                moderator=moderator,
+                reason="The reported content was removed.",
+            )
+
+        moderate_review(
+            review,
+            status=ProductReview.Status.HIDDEN,
+            moderator=moderator,
+            reason="Removed after investigating a customer report.",
+        )
+        resolved = resolve_review_report(
+            report,
+            status=ReviewReport.Status.ACTION_TAKEN,
+            moderator=moderator,
+            reason="The review was hidden after investigation.",
+        )
+
+        self.assertEqual(resolved.status, ReviewReport.Status.ACTION_TAKEN)
+        event = ReviewReportEvent.objects.get(report=report)
+        self.assertEqual(event.previous_status, ReviewReport.Status.OPEN)
+        self.assertEqual(event.moderator_id, moderator.pk)
+        with self.assertRaises(ValidationError):
+            event.save()
+
+    def test_review_owner_can_appeal_a_rejected_review_and_moderator_can_reopen_it(self):
+        review, moderator = self._make_moderated_review(ProductReview.Status.REJECTED)
+        reason = "The note seems to describe a product-specific concern unrelated to the policy."
+        appeal = appeal_review(self.customer, review_id=review.pk, reason=reason)
+
+        self.assertEqual(appeal.status, ReviewAppeal.Status.PENDING)
+        self.assertEqual(appeal.reason, reason)
+        with self.assertRaises(ReviewError):
+            submit_review(
+                self.customer,
+                order_line_id=self.order_line.pk,
+                rating=4,
+                body="The glaze has a softer tone than I expected, but it is sturdy.",
+            )
+        with self.assertRaises(ReviewError):
+            appeal_review(self.other_customer, review_id=review.pk, reason=reason)
+        with self.assertRaises(ReviewError):
+            appeal_review(self.customer, review_id=review.pk, reason=reason)
+
+        resolved = resolve_review_appeal(
+            appeal,
+            status=ReviewAppeal.Status.REOPENED,
+            moderator=moderator,
+            reason="The moderation decision will be reviewed again.",
+        )
+        review.refresh_from_db()
+        self.assertEqual(resolved.status, ReviewAppeal.Status.REOPENED)
+        self.assertEqual(review.status, ProductReview.Status.PENDING)
+        self.assertIsNone(review.moderated_by)
+        self.assertEqual(ReviewAppealEvent.objects.get(appeal=appeal).moderator_id, moderator.pk)
+        moderation_event = ReviewModerationEvent.objects.get(appeal=appeal)
+        self.assertEqual(moderation_event.previous_status, ProductReview.Status.REJECTED)
+        self.assertEqual(moderation_event.new_status, ProductReview.Status.PENDING)
+
+    def test_customer_can_submit_report_and_appeal_from_customer_pages(self):
+        approved, _moderator = self._make_moderated_review(ProductReview.Status.APPROVED)
+        self.client.force_login(self.other_customer)
+        detail_response = self.client.get(
+            reverse("storefront:product-detail", args=[self.product.slug])
+        )
+        self.assertContains(detail_response, reverse("reviews:report", args=[approved.pk]))
+        report_response = self.client.post(
+            reverse("reviews:report", args=[approved.pk]),
+            {
+                "category": ReviewReport.Category.IRRELEVANT,
+                "details": "The text does not appear to describe this bowl.",
+            },
+        )
+        self.assertRedirects(
+            report_response,
+            reverse("storefront:product-detail", args=[self.product.slug]),
+        )
+        self.assertTrue(
+            ReviewReport.objects.filter(review=approved, reporter=self.other_customer).exists()
+        )
+
+        appeal_line = self._new_delivered_order_line()
+        appeal_review_obj, _moderator = self._make_moderated_review(
+            ProductReview.Status.REJECTED, order_line=appeal_line
+        )
+        self.client.force_login(self.customer)
+        order_response = self.client.get(
+            reverse("accounts:order-detail", args=[appeal_line.order.order_number])
+        )
+        self.assertContains(order_response, reverse("reviews:appeal", args=[appeal_review_obj.pk]))
+        appeal_response = self.client.post(
+            reverse("reviews:appeal", args=[appeal_review_obj.pk]),
+            {"reason": "I believe the decision did not account for the product-specific context."},
+        )
+        self.assertRedirects(
+            appeal_response,
+            reverse("accounts:order-detail", args=[appeal_line.order.order_number]),
+        )
+        self.assertTrue(ReviewAppeal.objects.filter(review=appeal_review_obj).exists())
+        edit_response = self.client.get(reverse("reviews:submit", args=[appeal_line.pk]))
+        self.assertRedirects(
+            edit_response,
+            reverse("accounts:order-detail", args=[appeal_line.order.order_number]),
+        )
+
+    def test_admin_can_resolve_report_and_appeal_with_audit_records(self):
+        moderator = get_user_model().objects.create_user(
+            "review-queue@example.com", "Review-queue-safe-passphrase-112!", is_staff=True
+        )
+        permission = Permission.objects.get(
+            content_type__app_label="reviews", codename="moderate_review"
+        )
+        moderator.user_permissions.add(permission)
+
+        approved, _owner = self._make_moderated_review(ProductReview.Status.APPROVED)
+        report = report_review(
+            self.other_customer,
+            review_id=approved.pk,
+            category=ReviewReport.Category.SPAM,
+        )
+        self.client.force_login(moderator)
+        event_forms = {
+            "events-TOTAL_FORMS": "0",
+            "events-INITIAL_FORMS": "0",
+            "events-MIN_NUM_FORMS": "0",
+            "events-MAX_NUM_FORMS": "1000",
+        }
+        report_response = self.client.post(
+            reverse("admin:reviews_reviewreport_change", args=[report.pk]),
+            {
+                "status": ReviewReport.Status.DISMISSED,
+                "resolution_note": "The reported text is relevant to the product.",
+                "_save": "Save",
+                **event_forms,
+            },
+        )
+        self.assertEqual(report_response.status_code, 302)
+        report.refresh_from_db()
+        self.assertEqual(report.status, ReviewReport.Status.DISMISSED)
+        self.assertEqual(ReviewReportEvent.objects.filter(report=report).count(), 1)
+
+        rejected, _owner = self._make_moderated_review(
+            ProductReview.Status.REJECTED, order_line=self._new_delivered_order_line()
+        )
+        appeal = appeal_review(
+            self.customer,
+            review_id=rejected.pk,
+            reason="The review explains a real issue I experienced with this exact product.",
+        )
+        appeal_response = self.client.post(
+            reverse("admin:reviews_reviewappeal_change", args=[appeal.pk]),
+            {
+                "status": ReviewAppeal.Status.REOPENED,
+                "resolution_note": "The original review will be reconsidered.",
+                "_save": "Save",
+                **event_forms,
+            },
+        )
+        self.assertEqual(appeal_response.status_code, 302)
+        appeal.refresh_from_db()
+        rejected.refresh_from_db()
+        self.assertEqual(appeal.status, ReviewAppeal.Status.REOPENED)
+        self.assertEqual(rejected.status, ProductReview.Status.PENDING)
+        self.assertEqual(ReviewAppealEvent.objects.filter(appeal=appeal).count(), 1)

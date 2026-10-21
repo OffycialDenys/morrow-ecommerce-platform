@@ -200,3 +200,12 @@ if not 1 <= CART_MAX_QUANTITY <= 10:
     raise ImproperlyConfigured("CART_MAX_QUANTITY must be between one and ten.")
 if SUPPLIER_STOCK_MAX_AGE_HOURS < 1:
     raise ImproperlyConfigured("SUPPLIER_STOCK_MAX_AGE_HOURS must be positive.")
+
+PAYMENT_ENVIRONMENT = os.environ.get("PAYMENT_ENVIRONMENT", "sandbox").strip().lower()
+if PAYMENT_ENVIRONMENT not in {"sandbox", "production"}:
+    raise ImproperlyConfigured("PAYMENT_ENVIRONMENT must be 'sandbox' or 'production'.")
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
+PAYPAL_WEBHOOK_ID = os.environ.get("PAYPAL_WEBHOOK_ID", "")

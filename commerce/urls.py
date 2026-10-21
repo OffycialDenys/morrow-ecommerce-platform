@@ -10,4 +10,6 @@ urlpatterns = [
     path("update/<int:variant_id>/", views.update, name="update"),
     path("remove/<int:variant_id>/", views.remove, name="remove"),
     path("checkout/", views.checkout, name="checkout"),
+    path("payments/webhooks/stripe/", views.stripe_webhook, name="stripe-webhook"),
+    path("payments/webhooks/paypal/", views.paypal_webhook, name="paypal-webhook"),
 ]

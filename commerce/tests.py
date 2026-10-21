@@ -9,8 +9,15 @@ from django.urls import reverse
 from django.utils import timezone
 
 from catalog.models import Product, ProductVariant
-from commerce.models import Order
+from commerce.models import Order, PaymentAttempt
 from commerce.money import format_minor, major_to_minor, minor_to_major
+from commerce.payments import (
+    PaymentError,
+    VerifiedPaymentEvent,
+    create_payment_attempt,
+    process_verified_payment_event,
+    set_payment_attempt_reference,
+)
 from commerce.services import CartError, add_variant, cart_summary, create_order_snapshot
 
 
@@ -269,3 +276,173 @@ class OrderHistoryAccessTests(TestCase):
 
         with self.assertRaises(ValidationError):
             line.save()
+
+
+class PaymentStateTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user("payer@example.com", "passphrase-1234")
+        product = Product.objects.create(
+            name="Canvas Pouch",
+            slug="canvas-pouch",
+            currency="USD",
+            publication_status=Product.PublicationStatus.PUBLISHED,
+        )
+        variant = ProductVariant.objects.create(
+            product=product, sku="POUCH-SAND", price_minor=1800, available_units=5
+        )
+        self.order = create_order_snapshot(
+            user,
+            {"cart_items": {str(variant.pk): 1}},
+            idempotency_key=uuid.uuid4(),
+            shipping_minor=300,
+            tax_minor=0,
+            currency="USD",
+        )
+        self.attempt = create_payment_attempt(
+            self.order, provider="stripe", idempotency_key=uuid.uuid4()
+        )
+        set_payment_attempt_reference(self.attempt, "cs_test_123")
+
+    def make_event(self, **overrides):
+        values = {
+            "provider": "stripe",
+            "event_id": "evt_checkout_123",
+            "event_type": "checkout.session.completed",
+            "attempt_key": self.attempt.idempotency_key,
+            "provider_reference": "cs_test_123",
+            "payload_digest": "a" * 64,
+            "outcome": "paid",
+            "amount_minor": self.order.total_minor,
+            "currency": "USD",
+            "transaction_reference": "pi_test_123",
+        }
+        values.update(overrides)
+        return VerifiedPaymentEvent(**values)
+
+    def test_payment_attempt_copies_order_amount_and_reuses_its_key(self):
+        attempt = self.attempt
+
+        retry = create_payment_attempt(
+            self.order,
+            provider="stripe",
+            idempotency_key=attempt.idempotency_key,
+        )
+
+        self.assertEqual(retry.pk, attempt.pk)
+        self.assertEqual(retry.amount_minor, self.order.total_minor)
+        self.assertEqual(retry.currency, self.order.currency)
+
+    def test_only_one_open_payment_attempt_can_exist_for_an_order(self):
+        with self.assertRaises(PaymentError):
+            create_payment_attempt(self.order, provider="paypal", idempotency_key=uuid.uuid4())
+
+    def test_verified_success_marks_payment_paid_without_changing_fulfillment(self):
+        outcome = process_verified_payment_event(self.make_event())
+        self.order.refresh_from_db()
+        self.attempt.refresh_from_db()
+
+        self.assertEqual(outcome, "processed")
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+        self.assertEqual(self.order.fulfillment_status, Order.FulfillmentStatus.UNFULFILLED)
+        self.assertEqual(self.attempt.status, "succeeded")
+
+    def test_duplicate_verified_event_has_no_second_effect(self):
+        event = self.make_event()
+        first = process_verified_payment_event(event)
+        second = process_verified_payment_event(event)
+
+        self.assertEqual((first, second), ("processed", "duplicate"))
+        self.assertEqual(self.attempt.events.count(), 1)
+
+    def test_mismatched_amount_is_recorded_and_requires_manual_review(self):
+        outcome = process_verified_payment_event(self.make_event(amount_minor=1))
+        self.order.refresh_from_db()
+        self.attempt.refresh_from_db()
+
+        self.assertEqual(outcome, "rejected")
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.NEEDS_REVIEW)
+        self.assertEqual(self.attempt.status, "succeeded")
+        self.assertEqual(self.attempt.events.get().status, "rejected")
+        self.assertEqual(self.attempt.events.get().transaction_reference, "pi_test_123")
+
+    def test_paid_mismatch_blocks_a_second_attempt_until_review(self):
+        process_verified_payment_event(self.make_event(amount_minor=1))
+
+        with self.assertRaises(PaymentError):
+            create_payment_attempt(self.order, provider="paypal", idempotency_key=uuid.uuid4())
+
+    def test_reused_transaction_reference_is_quarantined_without_unique_key_failure(self):
+        process_verified_payment_event(self.make_event())
+        variant = ProductVariant.objects.get(sku="POUCH-SAND")
+        second_order = create_order_snapshot(
+            self.order.user,
+            {"cart_items": {str(variant.pk): 1}},
+            idempotency_key=uuid.uuid4(),
+            shipping_minor=300,
+            tax_minor=0,
+            currency="USD",
+        )
+        second_attempt = create_payment_attempt(
+            second_order, provider="stripe", idempotency_key=uuid.uuid4()
+        )
+        set_payment_attempt_reference(second_attempt, "cs_test_second")
+        duplicate_capture = self.make_event(
+            event_id="evt_second_capture",
+            attempt_key=second_attempt.idempotency_key,
+            provider_reference="cs_test_second",
+        )
+
+        outcome = process_verified_payment_event(duplicate_capture)
+
+        second_order.refresh_from_db()
+        second_attempt.refresh_from_db()
+        self.assertEqual(outcome, "rejected")
+        self.assertEqual(second_order.payment_status, Order.PaymentStatus.NEEDS_REVIEW)
+        self.assertEqual(second_attempt.status, PaymentAttempt.Status.SUCCEEDED)
+        self.assertEqual(second_attempt.transaction_reference, "")
+        self.assertEqual(second_attempt.events.get().transaction_reference, "pi_test_123")
+
+    def test_late_failure_event_does_not_regress_a_paid_order(self):
+        process_verified_payment_event(self.make_event())
+        outcome = process_verified_payment_event(
+            self.make_event(event_id="evt_late_failure", outcome="failed")
+        )
+        self.order.refresh_from_db()
+
+        self.assertEqual(outcome, "ignored")
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PAID)
+
+    def test_late_pending_event_does_not_regress_a_paid_attempt(self):
+        process_verified_payment_event(self.make_event())
+        outcome = process_verified_payment_event(
+            self.make_event(event_id="evt_late_pending", outcome="pending")
+        )
+        self.attempt.refresh_from_db()
+
+        self.assertEqual(outcome, "ignored")
+        self.assertEqual(self.attempt.status, "succeeded")
+
+    def test_late_cancellation_does_not_regress_a_paid_attempt(self):
+        process_verified_payment_event(self.make_event())
+        outcome = process_verified_payment_event(
+            self.make_event(event_id="evt_late_cancel", outcome="cancelled")
+        )
+        self.attempt.refresh_from_db()
+
+        self.assertEqual(outcome, "ignored")
+        self.assertEqual(self.attempt.status, "succeeded")
+
+    def test_failed_attempt_can_be_retried_with_a_new_key(self):
+        outcome = process_verified_payment_event(
+            self.make_event(event_id="evt_failed", outcome="failed")
+        )
+        self.order.refresh_from_db()
+        self.assertEqual(outcome, "processed")
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.FAILED)
+
+        retry = create_payment_attempt(self.order, provider="paypal", idempotency_key=uuid.uuid4())
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.payment_status, Order.PaymentStatus.PENDING)
+        self.assertEqual(retry.status, "created")
+        self.assertNotEqual(retry.pk, self.attempt.pk)

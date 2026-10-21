@@ -19,4 +19,7 @@ Use `.env.example` as a local development template only. Store production secret
 | `CURRENCY_LOCALE` | Formatting locale only; does not convert or select a currency. | Choose to match the approved market. |
 | `CART_MAX_QUANTITY` | Per-variant cart quantity cap. | Defaults to 10. |
 | `SUPPLIER_STOCK_MAX_AGE_HOURS` | Maximum age for a supplier inventory observation. | Set from supplier and fulfillment reliability requirements. |
+| `PAYMENT_ENVIRONMENT` | Selects provider sandbox or production endpoints. | Defaults to `sandbox`; verify keys match before any production use. |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe server key and webhook signing secret. | Keep in a secret manager; use matching test/live credentials. |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` | PayPal server credentials and registered webhook ID. | Keep secrets in a secret manager and match the environment. |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Local Compose PostgreSQL setup. | Local-only values; use managed database credentials in production. |

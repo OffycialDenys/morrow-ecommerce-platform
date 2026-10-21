@@ -6,14 +6,14 @@ The platform is a Django modular monolith. Server-rendered HTML is the primary s
 
 - `accounts`: customer identity, profiles, addresses, and saved products.
 - `catalog`: categories, products, variants, media references, supplier identifiers, publication, and observed availability.
-- `commerce`: cart calculations, order snapshots, payment state, fulfillment state, and refund records.
+- `commerce`: cart calculations, order snapshots, payment attempts/events, provider adapters, payment state, and fulfillment state.
 - `promotions`: points ledger, reversals, giveaway configuration, entry records, and drawing audit.
 - `reviews`: verified-purchase eligibility, review submission, moderation, and rating summaries.
-- `integrations`: supplier/payment adapters, synchronization runs, webhook event receipts, and retry metadata.
+- AliExpress synchronization remains a planned integration boundary until authorized API access and contracts are available.
 - `storefront`: presentation and request orchestration; business calculations stay in domain services.
 - `config`: environment configuration, URL routing, and production defaults.
 
-The current code implements the catalog, accounts, cart, order snapshots/history, health, and storefront slices. Checkout is not connected to order creation yet. `promotions`, `reviews`, and `integrations` are planned domain boundaries; they do not yet exist as application modules or contain production functionality.
+The current code implements the catalog, accounts, cart, order snapshots/history, Stripe and PayPal server adapters, payment attempt/event state handling, health, and storefront slices. Provider checkout is not connected to customer order placement because market, shipping, tax, and payment decisions remain open. `promotions` and `reviews` are planned domain boundaries; they do not yet exist as application modules or contain production functionality.
 
 ## Initial decisions
 

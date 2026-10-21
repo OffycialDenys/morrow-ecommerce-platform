@@ -26,9 +26,10 @@
 - [x] Add durable order snapshots and owner-scoped order history.
   - Acceptance: historical totals stay fixed; payment and fulfillment states are distinct.
   - Verify: snapshot, authorization, and duplicate order tests. Payment-event and state-transition tests remain with provider work.
-- [ ] Add provider adapters, idempotent webhook records, sandbox flows, refund/reconciliation operations.
+- [ ] Complete provider sandbox flows, refund/reconciliation operations, and customer checkout route.
   - Acceptance: exact current provider contract is verified and sandbox tests run; no browser redirect marks an order paid.
-  - Verify: provider test doubles plus real sandbox evidence.
+  - Implemented: Stripe Checkout session creation, PayPal Orders v2 create/capture, signature verification, bounded webhook endpoints, amount checks, provider transaction references, and duplicate/out-of-order event handling.
+  - Still needed: market/shipping/tax rules, customer return/capture path, refund records and authorization, provider reconciliation, merchant credentials/webhook configuration, and real sandbox evidence.
 
 ## Promotions, reviews, and launch
 

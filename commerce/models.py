@@ -15,6 +15,8 @@ class Order(models.Model):
         FAILED = "failed", "Payment failed"
         PARTIALLY_REFUNDED = "partially_refunded", "Partially refunded"
         REFUNDED = "refunded", "Refunded"
+        CANCELLED = "cancelled", "Cancelled"
+        NEEDS_REVIEW = "needs_review", "Needs payment review"
 
     class FulfillmentStatus(models.TextChoices):
         UNFULFILLED = "unfulfilled", "Unfulfilled"
@@ -99,3 +101,89 @@ class OrderLine(models.Model):
         if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
             raise ValidationError("Order line snapshots cannot be changed after creation.")
         super().save(*args, **kwargs)
+
+
+class PaymentAttempt(models.Model):
+    class Provider(models.TextChoices):
+        STRIPE = "stripe", "Stripe"
+        PAYPAL = "paypal", "PayPal"
+
+    class Status(models.TextChoices):
+        CREATED = "created", "Created"
+        AWAITING_CUSTOMER = "awaiting_customer", "Awaiting customer"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+        REFUNDED = "refunded", "Refunded"
+
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name="payment_attempts")
+    provider = models.CharField(max_length=12, choices=Provider.choices)
+    idempotency_key = models.UUIDField(unique=True, editable=False)
+    provider_reference = models.CharField(max_length=200, blank=True)
+    transaction_reference = models.CharField(max_length=200, blank=True)
+    amount_minor = models.PositiveBigIntegerField()
+    currency = models.CharField(max_length=3, validators=[validate_iso_currency])
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.CREATED)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("provider", "provider_reference"),
+                condition=~Q(provider_reference=""),
+                name="commerce_payment_provider_ref_unique",
+            ),
+            models.UniqueConstraint(
+                fields=("provider", "transaction_reference"),
+                condition=~Q(transaction_reference=""),
+                name="commerce_payment_transaction_ref_unique",
+            ),
+            models.UniqueConstraint(
+                fields=("order",),
+                condition=Q(status__in=("created", "awaiting_customer")),
+                name="commerce_one_open_payment_per_order",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider} attempt for {self.order}"
+
+
+class PaymentEvent(models.Model):
+    class Status(models.TextChoices):
+        PROCESSED = "processed", "Processed"
+        IGNORED = "ignored", "Ignored"
+        REJECTED = "rejected", "Rejected"
+
+    provider = models.CharField(max_length=12, choices=PaymentAttempt.Provider.choices)
+    provider_event_id = models.CharField(max_length=255)
+    event_type = models.CharField(max_length=120)
+    provider_reference = models.CharField(max_length=200, blank=True)
+    transaction_reference = models.CharField(max_length=200, blank=True)
+    attempt = models.ForeignKey(
+        PaymentAttempt,
+        on_delete=models.SET_NULL,
+        related_name="events",
+        null=True,
+        blank=True,
+    )
+    payload_digest = models.CharField(max_length=64)
+    reported_amount_minor = models.PositiveBigIntegerField()
+    reported_currency = models.CharField(max_length=16)
+    status = models.CharField(max_length=12, choices=Status.choices)
+    received_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-received_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("provider", "provider_event_id"),
+                name="commerce_payment_event_unique",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider} event {self.provider_event_id}"

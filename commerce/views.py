@@ -1,11 +1,26 @@
+import logging
+
 from django.contrib import messages
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from catalog.models import Product
 
 from .forms import AddToCartForm, ChangeCartQuantityForm
+from .payments import PaymentError, process_verified_payment_event
+from .providers import (
+    MAX_WEBHOOK_BODY_BYTES,
+    PayPalGateway,
+    ProviderConfigurationError,
+    ProviderRequestError,
+    ProviderVerificationError,
+    StripeGateway,
+)
 from .services import CartError, add_variant, cart_summary, remove_variant, set_variant_quantity
+
+logger = logging.getLogger(__name__)
 
 
 def cart(request):
@@ -59,3 +74,71 @@ def checkout(request):
     return render(
         request, "commerce/checkout_unavailable.html", {"cart": cart_summary(request.session)}
     )
+
+
+def _webhook_error_response(error: Exception) -> HttpResponse:
+    if isinstance(error, ProviderVerificationError):
+        return JsonResponse({"received": False}, status=400)
+    if isinstance(error, (ProviderConfigurationError, ProviderRequestError)):
+        return JsonResponse({"received": False}, status=503)
+    if isinstance(error, PaymentError):
+        return JsonResponse({"received": False}, status=400)
+    return JsonResponse({"received": False}, status=500)
+
+
+def _request_body_within_limit(request) -> bool:
+    try:
+        content_length = int(request.META.get("CONTENT_LENGTH") or 0)
+    except (TypeError, ValueError):
+        return False
+    if content_length > MAX_WEBHOOK_BODY_BYTES:
+        return False
+    return len(request.body) <= MAX_WEBHOOK_BODY_BYTES
+
+
+@csrf_exempt
+@require_POST
+def stripe_webhook(request):
+    if not _request_body_within_limit(request):
+        return JsonResponse({"received": False}, status=413)
+    try:
+        event = StripeGateway().verify_webhook(
+            request.body, request.headers.get("Stripe-Signature")
+        )
+        if event is not None:
+            process_verified_payment_event(event)
+    except (
+        ProviderConfigurationError,
+        ProviderRequestError,
+        ProviderVerificationError,
+        PaymentError,
+    ) as error:
+        return _webhook_error_response(error)
+    except Exception:
+        logger.exception("Stripe webhook processing failed")
+        return JsonResponse({"received": False}, status=500)
+    return JsonResponse({"received": True})
+
+
+@csrf_exempt
+@require_POST
+def paypal_webhook(request):
+    if not _request_body_within_limit(request):
+        return JsonResponse({"received": False}, status=413)
+    try:
+        gateway = PayPalGateway()
+        provider_event = gateway.verify_webhook(request.body, request.headers)
+        event = gateway.normalize_webhook(provider_event, request.body)
+        if event is not None:
+            process_verified_payment_event(event)
+    except (
+        ProviderConfigurationError,
+        ProviderRequestError,
+        ProviderVerificationError,
+        PaymentError,
+    ) as error:
+        return _webhook_error_response(error)
+    except Exception:
+        logger.exception("PayPal webhook processing failed")
+        return JsonResponse({"received": False}, status=500)
+    return JsonResponse({"received": True})

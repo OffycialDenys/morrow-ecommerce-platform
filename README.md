@@ -55,6 +55,7 @@ This Compose file is for local development only. It runs Django's development se
 - Email-based registration, login/logout, password reset, and owner-scoped saved products.
 - Server-derived cart totals, variant availability checks, quantity caps, mixed-currency protection, and supplier-stock freshness checks.
 - Internal idempotent order snapshot service, immutable line pricing, distinct payment/fulfillment fields, and owner-scoped order history.
+- Stripe Checkout and PayPal Orders v2 server adapters, signed webhook endpoints, provider transaction IDs, and internal idempotent payment state handling; customer checkout remains disabled pending store rules and sandbox verification.
 - Responsive original storefront design, autoescaped product descriptions, health endpoints, and browser security headers.
 - Django Admin product/category management with explicit draft/review/published states.
 

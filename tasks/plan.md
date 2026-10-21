@@ -28,7 +28,7 @@ Build the requested store incrementally as a Django modular monolith. The curren
 ### Phase 3: Commerce foundation
 
 7. Add server-priced session cart, currency consistency, quantity availability rechecks, immutable order snapshots, and owner-scoped order history. (Implemented.)
-8. Add payment adapter contracts and webhook receipt/idempotency storage; keep order placement unavailable until payment and shipping/tax decisions and credentials are supplied.
+8. Add payment adapter contracts, Stripe/PayPal create/capture operations, and webhook receipt/idempotency storage; keep customer order placement unavailable until payment and shipping/tax decisions and credentials are supplied. (Adapter and webhook foundation implemented; sandbox/checkout work remains.)
 
 ### Phase 4: Community and promotions
 
@@ -38,7 +38,7 @@ Build the requested store incrementally as a Django modular monolith. The curren
 ### Phase 5: Providers and launch readiness
 
 11. Implement documented authorized AliExpress mapping/sync after permissions and API selection.
-12. Implement Stripe/PayPal sandbox flows, webhook verification, refunds, and reconciliation after sandbox credentials and business rules arrive.
+12. Verify Stripe/PayPal sandbox flows and implement refunds/reconciliation after sandbox credentials and business rules arrive. (Server adapters and webhook verification implemented; no sandbox evidence yet.)
 13. Complete deployment rehearsal, security/performance/accessibility checks, backup recovery, operations docs, and the final acceptance report.
 
 ## Risks and mitigations

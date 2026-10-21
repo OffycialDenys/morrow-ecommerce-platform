@@ -19,6 +19,8 @@ Use `.env.example` as a local development template only. Store production secret
 | `CURRENCY_LOCALE` | Formatting locale only; does not convert or select a currency. | Choose to match the approved market. |
 | `CART_MAX_QUANTITY` | Per-variant cart quantity cap. | Defaults to 10. |
 | `SUPPLIER_STOCK_MAX_AGE_HOURS` | Maximum age for a supplier inventory observation. | Set from supplier and fulfillment reliability requirements. |
+| `SUPPLIER_SYNC_ENABLED` | Allows an authorized normalized supplier import service to stage catalog snapshots. | Defaults to `false`; enabling it does not configure or authorize a live AliExpress API client. |
+| `SUPPLIER_SYNC_STALE_AFTER_SECONDS` | Age after which a stalled supplier sync run may be marked failed before a new run starts. | Defaults to 3600 seconds; keep longer than the maximum bounded adapter request duration. |
 | `PAYMENT_ENVIRONMENT` | Selects provider sandbox or production endpoints. | Defaults to `sandbox`; verify keys match before any production use. |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe server key and webhook signing secret. | Keep in a secret manager; use matching test/live credentials. |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` | PayPal server credentials and registered webhook ID. | Keep secrets in a secret manager and match the environment. |

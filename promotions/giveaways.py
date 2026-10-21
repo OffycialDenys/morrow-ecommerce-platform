@@ -297,7 +297,7 @@ def record_giveaway_entries(
         raise GiveawayError("Giveaways are disabled by the site launch setting.")
     if not isinstance(source_event_key, str) or not source_event_key.strip():
         raise GiveawayError("A stable qualification event key is required.")
-    if type(qualifier_count) is not int or qualifier_count < 1:
+    if type(qualifier_count) is not int or qualifier_count < 1:  # noqa: E721
         raise GiveawayError("The number of qualifying events must be a positive whole number.")
     if len(source_event_key.strip()) > 160:
         raise GiveawayError("The qualification event key is too long.")

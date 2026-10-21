@@ -5,7 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, URLValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -178,3 +178,209 @@ class ProductVariant(models.Model):
 
     def __str__(self) -> str:
         return f"{self.product.name} — {self.label or self.sku}"
+
+
+class SupplierSyncRun(models.Model):
+    class Status(models.TextChoices):
+        RUNNING = "running", "Running"
+        SUCCEEDED = "succeeded", "Succeeded"
+        PARTIAL = "partial", "Completed with errors"
+        FAILED = "failed", "Failed"
+
+    supplier_code = models.CharField(
+        max_length=40,
+        validators=[RegexValidator(r"^[a-z][a-z0-9_]{0,39}$")],
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="supplier_sync_runs",
+        null=True,
+        blank=True,
+    )
+    dry_run = models.BooleanField(default=False)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.RUNNING)
+    records_seen = models.PositiveIntegerField(default=0)
+    staged_count = models.PositiveIntegerField(default=0)
+    validated_count = models.PositiveIntegerField(default=0)
+    skipped_count = models.PositiveIntegerField(default=0)
+    failed_count = models.PositiveIntegerField(default=0)
+    error_summary = models.CharField(max_length=500, blank=True)
+    started_at = models.DateTimeField(default=timezone.now)
+    last_progress_at = models.DateTimeField(default=timezone.now)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-started_at", "-pk")
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    records_seen=(
+                        F("staged_count")
+                        + F("validated_count")
+                        + F("skipped_count")
+                        + F("failed_count")
+                    )
+                ),
+                name="cat_sync_counts_match_records",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(status="running", finished_at__isnull=True)
+                    | Q(
+                        status__in=("succeeded", "partial", "failed"),
+                        finished_at__isnull=False,
+                    )
+                ),
+                name="cat_sync_finish_state_consistent",
+            ),
+            models.UniqueConstraint(
+                fields=("supplier_code",),
+                condition=Q(status="running"),
+                name="cat_one_running_supplier_sync",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("supplier_code", "-started_at"), name="cat_sync_provider_recent_idx"
+            ),
+        ]
+        permissions = [
+            ("run_supplier_sync", "Can run supplier catalog imports"),
+            ("view_supplier_sync", "Can view supplier catalog import history"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.supplier_code} sync {self.pk} ({self.status})"
+
+
+class ImmutableSupplierDataQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Supplier import records cannot be changed.")
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        raise ValidationError("Supplier import records cannot be changed.")
+
+    def delete(self):
+        raise ValidationError("Supplier import records cannot be deleted.")
+
+
+class SupplierCatalogSnapshot(models.Model):
+    sync_run = models.ForeignKey(
+        SupplierSyncRun, on_delete=models.PROTECT, related_name="snapshots"
+    )
+    supplier_code = models.CharField(max_length=40)
+    supplier_product_id = models.CharField(max_length=120)
+    name = models.CharField(max_length=160)
+    description = models.TextField(blank=True)
+    image_url = models.URLField(
+        max_length=500,
+        blank=True,
+        validators=[https_url_validator],
+        help_text="Stored for staff review only; this URL is never fetched by the application.",
+    )
+    variants = models.JSONField()
+    source_digest = models.CharField(max_length=64)
+    observed_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ImmutableSupplierDataQuerySet.as_manager()
+
+    class Meta:
+        ordering = ("-created_at", "-pk")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("sync_run", "supplier_product_id"),
+                name="cat_sync_product_snapshot_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=("supplier_code", "supplier_product_id", "-created_at"),
+                name="cat_sup_snap_recent_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.supplier_code} product {self.supplier_product_id}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Supplier catalog snapshots cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Supplier catalog snapshots cannot be deleted.")
+
+
+class SupplierSyncItem(models.Model):
+    class Outcome(models.TextChoices):
+        STAGED = "staged", "Staged for review"
+        VALIDATED = "validated", "Validated (dry run)"
+        DUPLICATE = "duplicate", "Duplicate skipped"
+        FAILED = "failed", "Validation or import failed"
+
+    sync_run = models.ForeignKey(
+        SupplierSyncRun, on_delete=models.PROTECT, related_name="items"
+    )
+    record_number = models.PositiveIntegerField()
+    supplier_product_id = models.CharField(max_length=120, blank=True)
+    outcome = models.CharField(max_length=12, choices=Outcome.choices)
+    error_code = models.CharField(max_length=40, blank=True)
+    error_message = models.CharField(max_length=400, blank=True)
+    snapshot = models.OneToOneField(
+        SupplierCatalogSnapshot,
+        on_delete=models.PROTECT,
+        related_name="sync_item",
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ImmutableSupplierDataQuerySet.as_manager()
+
+    class Meta:
+        ordering = ("record_number", "pk")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("sync_run", "record_number"), name="cat_sync_item_number_unique"
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(outcome="staged", snapshot__isnull=False, error_code="", error_message="")
+                    | Q(
+                        outcome="validated",
+                        snapshot__isnull=True,
+                        error_code="",
+                        error_message="",
+                    )
+                    | Q(
+                        outcome="duplicate",
+                        snapshot__isnull=True,
+                        error_code="",
+                        error_message="",
+                    )
+                    | Q(
+                        outcome="failed",
+                        snapshot__isnull=True,
+                        error_code__gt="",
+                        error_message__gt="",
+                    )
+                ),
+                name="cat_sync_item_outcome_consistent",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("sync_run", "outcome"), name="cat_sync_item_outcome_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.sync_run}: record {self.record_number} ({self.outcome})"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Supplier import records cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Supplier import records cannot be deleted.")

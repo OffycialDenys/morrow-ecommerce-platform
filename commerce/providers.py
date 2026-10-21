@@ -259,7 +259,7 @@ class StripeGateway:
             outcome = outcomes[event_type]
         amount = _field(session, "amount_total")
         currency = _field(session, "currency")
-        if type(amount) is not int or not isinstance(currency, str):
+        if type(amount) is not int or not isinstance(currency, str):  # noqa: E721
             raise ProviderVerificationError("The Stripe event is missing its amount.")
         metadata = _field(session, "metadata", {}) or {}
         raw_attempt_key = _field(metadata, "payment_attempt_key")

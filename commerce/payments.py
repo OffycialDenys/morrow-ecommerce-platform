@@ -250,7 +250,7 @@ def process_verified_payment_event(event: VerifiedPaymentEvent) -> str:
         raise PaymentError("The payment event has an invalid provider reference.")
     if event.attempt_key is None and not event.provider_reference:
         raise PaymentError("The payment event has no provider reference.")
-    if type(event.amount_minor) is not int or not 0 <= event.amount_minor <= 2**63 - 1:
+    if type(event.amount_minor) is not int or not 0 <= event.amount_minor <= 2**63 - 1:  # noqa: E721
         raise PaymentError("The payment event has an invalid amount.")
     if not isinstance(event.payload_digest, str) or not re.fullmatch(
         r"[0-9a-f]{64}", event.payload_digest

@@ -198,10 +198,16 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 2_621_440
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2_621_440
 CART_MAX_QUANTITY = int(os.environ.get("CART_MAX_QUANTITY", "10"))
 SUPPLIER_STOCK_MAX_AGE_HOURS = int(os.environ.get("SUPPLIER_STOCK_MAX_AGE_HOURS", "24"))
+SUPPLIER_SYNC_ENABLED = env_bool("SUPPLIER_SYNC_ENABLED", default=False)
+SUPPLIER_SYNC_STALE_AFTER_SECONDS = int(
+    os.environ.get("SUPPLIER_SYNC_STALE_AFTER_SECONDS", "3600")
+)
 if not 1 <= CART_MAX_QUANTITY <= 10:
     raise ImproperlyConfigured("CART_MAX_QUANTITY must be between one and ten.")
 if SUPPLIER_STOCK_MAX_AGE_HOURS < 1:
     raise ImproperlyConfigured("SUPPLIER_STOCK_MAX_AGE_HOURS must be positive.")
+if SUPPLIER_SYNC_STALE_AFTER_SECONDS < 60:
+    raise ImproperlyConfigured("SUPPLIER_SYNC_STALE_AFTER_SECONDS must be at least 60.")
 
 PAYMENT_ENVIRONMENT = os.environ.get("PAYMENT_ENVIRONMENT", "sandbox").strip().lower()
 if PAYMENT_ENVIRONMENT not in {"sandbox", "production"}:

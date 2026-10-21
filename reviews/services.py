@@ -24,7 +24,7 @@ class ReviewRateLimited(ReviewError):
 
 
 def _clean_review(rating: int, body: str) -> tuple[int, str]:
-    if type(rating) is not int or not 1 <= rating <= 5:
+    if type(rating) is not int or not 1 <= rating <= 5:  # noqa: E721
         raise ReviewError("Choose a rating from one to five stars.")
     if not isinstance(body, str):
         raise ReviewError("Write a review before submitting.")

@@ -17,6 +17,9 @@
 - [x] Add account registration/login/logout and owner-scoped saved products.
   - Acceptance: email is unique; customers cannot modify/read another customer's saved data.
   - Verify: auth, CSRF, and cross-account request tests.
+- [ ] Complete authorized AliExpress catalog synchronization.
+  - Implemented: disabled-by-default normalized adapter contract, bounded fixture-backed staging imports, dry-run validation, immutable snapshots, per-record outcomes, duplicate detection, sync history, and read-only staff views. Live products are not modified.
+  - Still needed: selected API product and commercial permission, OAuth/credentials, provider response mapping, stock and currency semantics, retries/checkpointing/scheduling, retail pricing, and reviewed import/publish operations.
 
 ## Commerce
 

@@ -134,7 +134,7 @@ def create_order_snapshot(
         raise CartError("Sign in before placing an order.")
     if not isinstance(idempotency_key, UUID):
         raise CartError("A valid checkout idempotency key is required.")
-    if type(shipping_minor) is not int or type(tax_minor) is not int:
+    if type(shipping_minor) is not int or type(tax_minor) is not int:  # noqa: E721
         raise CartError("Shipping and tax must be integer minor-unit amounts.")
     if shipping_minor < 0 or tax_minor < 0:
         raise CartError("Shipping and tax amounts cannot be negative.")

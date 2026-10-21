@@ -95,7 +95,7 @@ def reverse_point_entry(
 ) -> PointEntry:
     """Add a partial or full compensating entry without editing the original."""
     event_key, reason = _validate_entry(event_key, reason)
-    if type(points) is not int or not 1 <= points <= MAX_POINTS:
+    if type(points) is not int or not 1 <= points <= MAX_POINTS:  # noqa: E721
         raise PointsError("Choose a positive number of points to reverse.")
     if actor is None or not actor.has_perm("promotions.adjust_points"):
         raise PermissionDenied("You do not have permission to reverse points.")
@@ -145,7 +145,7 @@ def request_point_adjustment(
 ) -> PointAdjustmentRequest:
     """Record an idempotent request that another staff member must resolve."""
     event_key, reason = _validate_entry(event_key, reason)
-    if type(points) is not int or points == 0 or abs(points) > MAX_POINTS:
+    if type(points) is not int or points == 0 or abs(points) > MAX_POINTS:  # noqa: E721
         raise PointsError("A manual adjustment must be a non-zero whole number of points.")
     if requester is None or not requester.has_perm("promotions.request_point_adjustment"):
         raise PermissionDenied("You do not have permission to request a points adjustment.")

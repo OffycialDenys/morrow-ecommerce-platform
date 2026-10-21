@@ -9,6 +9,7 @@
 - Cart contents store only variant identifiers and quantities in the server-side Django session. Prices and availability are re-read from the catalog; unknown/stale supplier stock is rejected.
 - Public responses do not include database exception details. Security headers include CSP, frame denial, referrer policy, and Permissions Policy.
 - Stripe webhook signatures are verified locally; PayPal webhook signatures are verified through PayPal's API before event normalization. Webhook bodies are size-limited, provider return hosts are allowlisted, and internal errors return generic responses while being logged without request payloads.
+- Points corrections require independent requester and approver permissions, and reversals require an authorized actor. Request details and decision events are retained as immutable history.
 - Production settings require an externally supplied secret, enable secure session/CSRF cookies, SSL redirect, HSTS, and compressed manifest static assets.
 - Runtime dependencies are pinned in `requirements.txt`; CI runs `pip-audit`.
 
@@ -16,7 +17,7 @@
 
 ## Current limitations
 
-- Authentication rate limiting, email verification, data retention workflows, customer deletion/export, structured audit trails, and a full role matrix are not implemented.
+- Authentication rate limiting, email verification, data retention workflows, customer deletion/export, a centralized audit trail across operational actions, and a formal role matrix are not implemented. Points corrections, review moderation, and giveaway administration do retain separate domain-specific audit events.
 - The local in-memory/static settings are for development. Production must use HTTPS, a reverse proxy that normalizes forwarded-protocol headers, managed secrets, encrypted database/backups, PostgreSQL access controls, and tested restore procedures.
 - Images are external HTTPS references only; they are not fetched by the server. Provider permission and an allowed image-host policy remain open.
 - PayPal's remote verification call is synchronous and public webhook routes do not have application-level rate limiting; configure ingress rate limits and monitoring before production. Provider credentials and webhook IDs still need to be provisioned.

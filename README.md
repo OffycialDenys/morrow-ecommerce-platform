@@ -79,6 +79,7 @@ See [architecture](docs/architecture.md), [ADR-0001](docs/decisions/0001-django-
 - Payment setup gate: [docs/payments.md](docs/payments.md)
 - Points policy and ledger: [docs/points.md](docs/points.md)
 - Verified purchase review behavior and remaining policy: [docs/reviews.md](docs/reviews.md)
+- Staff permissions and separation of duties: [docs/role-matrix.md](docs/role-matrix.md)
 - Giveaway approval, entry, draw controls, and launch gates: [docs/giveaways.md](docs/giveaways.md)
 - Outstanding decisions and launch gates: [docs/launch-gates.md](docs/launch-gates.md)
 

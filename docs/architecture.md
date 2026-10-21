@@ -16,6 +16,8 @@ The platform is a Django modular monolith. Server-rendered HTML is the primary s
 
 The current code implements the catalog, accounts, cart, order snapshots/history, Stripe and PayPal server adapters, payment attempt/event state handling, a disabled-by-default points ledger and giveaway lifecycle, verified-purchase review submission and moderation, health, and storefront slices. Provider checkout is not connected to customer order placement because market, shipping, tax, and payment decisions remain open. Purchase/points giveaway entry hooks and winner notifications remain planned work.
 
+Staff access uses Django permissions. The current least-privilege mapping and separation-of-duties requirements are in [the staff role matrix](role-matrix.md); named-role provisioning and owner approval remain launch work.
+
 ## Initial decisions
 
 - Django 5.2 LTS is selected because the available runtime is Python 3.11 and the framework supplies mature auth, sessions, ORM, migration, and admin components. Django 5.2 supports Python 3.11 and is an LTS release. See [Django 5.2 release notes](https://docs.djangoproject.com/en/5.2/releases/5.2/) and [release index](https://docs.djangoproject.com/en/5.2/releases/).

@@ -23,7 +23,7 @@
 
 ## Current limitations
 
-- Authentication rate limiting, email verification, data retention and deletion workflows, legal review of the account-export scope, broader audit coverage for operational actions, and a formal role matrix are not implemented. Points corrections, review moderation/reports/appeals, and giveaway administration retain separate domain-specific audit events.
+- Authentication rate limiting, email verification, data retention and deletion workflows, legal review of the account-export scope, broader audit coverage for operational actions, and approved staff-role provisioning are not implemented. The current least-privilege permission matrix is documented in `docs/role-matrix.md`; points corrections, review moderation/reports/appeals, and giveaway administration retain separate domain-specific audit events.
 - The local in-memory/static settings are for development. Production must use HTTPS, a reverse proxy that normalizes forwarded-protocol headers, managed secrets, encrypted database/backups, PostgreSQL access controls, and tested restore procedures.
 - Images are external HTTPS references only; they are not fetched by the server. Provider permission and an allowed image-host policy remain open.
 - PayPal's remote verification call is synchronous and public webhook routes do not have application-level rate limiting; configure ingress rate limits and monitoring before production. Provider credentials and webhook IDs still need to be provisioned.

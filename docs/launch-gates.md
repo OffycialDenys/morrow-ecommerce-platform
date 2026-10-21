@@ -9,7 +9,7 @@ The current build is a verified foundation, not a production-ready store. Before
 5. Points qualification, pending/finalization timing, expiry/redemption, refund/chargeback reversal, and manual adjustment approval.
 6. Giveaway jurisdiction, eligibility verification, no-purchase entry requirements where applicable, official rules, and qualified legal review. Keep `GIVEAWAYS_ENABLED=false` until the review is complete and operating owners are named.
 7. Production host, trusted TLS proxy, database/storage encryption, backup retention, restore rehearsal, log retention, monitoring/alerts, and incident owner.
-8. Email verification, abuse/rate limits, approved privacy/retention/deletion workflows, legal review of the current customer data-export scope, and legal documents for actual markets.
+8. Email verification, approved abuse/rate-limit policy, approved privacy/retention/deletion workflows, legal review of the current customer data-export scope, approved staff-role provisioning, and legal documents for actual markets.
 9. Review terms, content retention, appeal and abuse-reporting process, moderation staffing, and any incentive disclosures.
 10. Accessibility review, representative Lighthouse/performance measurement, and browser/device coverage.
 

@@ -205,6 +205,12 @@ def _apply_event_state(event: VerifiedPaymentEvent, attempt: PaymentAttempt, ord
         }:
             order.payment_status = Order.PaymentStatus.PAID
             order.save(update_fields=("payment_status", "updated_at"))
+            from django.conf import settings
+
+            if settings.POINTS_PROGRAM_ENABLED:
+                from promotions.points import credit_paid_order_points
+
+                credit_paid_order_points(order)
     elif event.outcome == "failed":
         attempt.status = PaymentAttempt.Status.FAILED
         attempt.save(

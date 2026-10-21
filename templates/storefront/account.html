@@ -5,6 +5,7 @@
 <section class="account-grid">
   <a class="account-tile" href="{% url 'accounts:saved' %}"><span class="tile-kicker">Your collection</span><h2>Saved pieces</h2><p>{{ saved_count }} saved item{{ saved_count|pluralize }}</p><span class="tile-arrow" aria-hidden="true">↗</span></a>
   <a class="account-tile" href="{% url 'accounts:orders' %}"><span class="tile-kicker">Your purchases</span><h2>Order history</h2><p>{{ order_count }} order{{ order_count|pluralize }} on your account</p><span class="tile-arrow" aria-hidden="true">↗</span></a>
+  {% if points_enabled %}<a class="account-tile" href="{% url 'accounts:points' %}"><span class="tile-kicker">Your rewards</span><h2>Points balance</h2><p>{{ points_balance }} point{{ points_balance|pluralize }} on your account</p><span class="tile-arrow" aria-hidden="true">↗</span></a>{% endif %}
   <div class="account-tile account-tile-muted"><span class="tile-kicker">Your details</span><h2>{{ request.user.first_name|default:"Account" }}</h2><p>Password recovery is available if you need to update your sign-in.</p><a class="text-link" href="{% url 'accounts:password_reset' %}">Reset password ↗</a></div>
 </section>
 <form class="signout-form" method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="text-link" type="submit">Sign out</button></form>

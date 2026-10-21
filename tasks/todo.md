@@ -33,9 +33,10 @@
 
 ## Promotions, reviews, and launch
 
-- [ ] Add immutable points ledger, duplicate event protection, and reversals.
+- [ ] Complete points administration and giveaway system.
   - Acceptance: repeated qualification events do not double-credit; refunds use compensating entries.
-  - Verify: transaction/idempotency/concurrency tests.
+  - Implemented: configurable per-unit values, immutable order-line snapshots, idempotent paid-order credits, compensating partial/full reversals, permission-checked adjustments, and private paginated account history. Program defaults off.
+  - Still needed: approved terms/values, refund/chargeback integration, adjustment request/approval UI, redemption policy, giveaway configuration/entries/auditable draw, and legal review.
 - [ ] Add verified-purchase review moderation and giveaway administration.
   - Acceptance: review eligibility derives from order data; giveaway remains inactive until legal approval.
   - Verify: permission, eligibility, audit, and draw tests.

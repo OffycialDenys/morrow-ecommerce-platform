@@ -214,6 +214,7 @@ def create_order_snapshot(
                             attributes=found[line.variant_id].attributes,
                             quantity=line.quantity,
                             unit_price_minor=found[line.variant_id].price_minor,
+                            points_per_unit=found[line.variant_id].points_per_unit,
                             line_total_minor=found[line.variant_id].price_minor * line.quantity,
                         )
                         for line in summary.lines

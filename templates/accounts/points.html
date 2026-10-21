@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Points history — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro"><p class="eyebrow">Your rewards</p><h1>Points history</h1><p>Your current balance is <strong>{{ balance }} point{{ balance|pluralize }}</strong>.</p></section>
+<section class="content-section">
+  {% if page.object_list %}
+    <div class="order-list">
+      {% for entry in page.object_list %}
+        <div class="order-row">
+          <span><strong>{{ entry.get_event_type_display }}</strong><small>{{ entry.reason }} · {{ entry.created_at|date:"M j, Y" }}</small></span>
+          <strong>{% if entry.points > 0 %}+{% endif %}{{ entry.points }}</strong>
+        </div>
+      {% endfor %}
+    </div>
+    {% if page.has_previous or page.has_next %}<nav class="pagination" aria-label="Points history pages">
+      {% if page.has_previous %}<a class="text-link" href="?page={{ page.previous_page_number }}">Previous</a>{% endif %}
+      <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a class="text-link" href="?page={{ page.next_page_number }}">Next</a>{% endif %}
+    </nav>{% endif %}
+  {% else %}
+    <div class="empty-state"><span class="empty-mark" aria-hidden="true">○</span><h2>No points activity</h2><p>Qualifying activity will appear here when the rewards program is active.</p><a class="button button-dark" href="{% url 'storefront:shop' %}">Explore the collection</a></div>
+  {% endif %}
+</section>
+{% endblock %}

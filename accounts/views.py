@@ -9,6 +9,8 @@ from django.contrib.auth.views import (
     PasswordResetDoneView,
     PasswordResetView,
 )
+from django.core.paginator import Paginator
+from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -16,6 +18,8 @@ from django.views.decorators.http import require_POST
 
 from catalog.models import Product
 from commerce.models import Order
+from promotions.models import PointEntry
+from promotions.points import get_points_balance
 
 from .forms import RegistrationForm
 from .models import SavedProduct
@@ -113,4 +117,25 @@ def order_detail(request, order_number):
         order_number=order_number,
         user=request.user,
     )
-    return render(request, "accounts/order_detail.html", {"order": order})
+    points_total = PointEntry.objects.filter(order=order).aggregate(total=Sum("points"))["total"]
+    return render(
+        request,
+        "accounts/order_detail.html",
+        {"order": order, "points_total": points_total},
+    )
+
+
+@login_required
+def points_history(request):
+    entries = PointEntry.objects.filter(customer=request.user).select_related(
+        "order", "order_line", "reversal_of"
+    )
+    page = Paginator(entries, 25).get_page(request.GET.get("page"))
+    return render(
+        request,
+        "accounts/points.html",
+        {
+            "balance": get_points_balance(request.user),
+            "page": page,
+        },
+    )

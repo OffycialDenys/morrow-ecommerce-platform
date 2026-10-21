@@ -11,6 +11,7 @@ class ProductVariantInline(admin.TabularInline):
         "label",
         "attributes",
         "price_minor",
+        "points_per_unit",
         "is_active",
         "inventory_source",
         "available_units",

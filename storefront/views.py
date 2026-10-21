@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db.models import Prefetch
@@ -6,6 +7,7 @@ from django.shortcuts import get_object_or_404, render
 from accounts.models import SavedProduct
 from catalog.forms import search_products
 from catalog.models import Category, Product, ProductVariant
+from promotions.points import get_points_balance
 
 
 def home(request):
@@ -92,5 +94,7 @@ def account(request):
         {
             "saved_count": SavedProduct.objects.filter(user=request.user).count(),
             "order_count": request.user.orders.count(),
+            "points_enabled": settings.POINTS_PROGRAM_ENABLED,
+            "points_balance": get_points_balance(request.user),
         },
     )

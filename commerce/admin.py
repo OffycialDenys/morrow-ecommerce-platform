@@ -15,6 +15,7 @@ class OrderLineInline(admin.TabularInline):
         "attributes",
         "quantity",
         "unit_price_minor",
+        "points_per_unit",
         "line_total_minor",
     )
 

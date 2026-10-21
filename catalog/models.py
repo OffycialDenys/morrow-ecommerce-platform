@@ -125,6 +125,7 @@ class ProductVariant(models.Model):
     label = models.CharField(max_length=120, blank=True)
     attributes = models.JSONField(default=dict, blank=True)
     price_minor = models.PositiveBigIntegerField()
+    points_per_unit = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     inventory_source = models.CharField(
         max_length=12,

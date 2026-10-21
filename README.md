@@ -56,6 +56,7 @@ This Compose file is for local development only. It runs Django's development se
 - Server-derived cart totals, variant availability checks, quantity caps, mixed-currency protection, and supplier-stock freshness checks.
 - Internal idempotent order snapshot service, immutable line pricing, distinct payment/fulfillment fields, and owner-scoped order history.
 - Stripe Checkout and PayPal Orders v2 server adapters, signed webhook endpoints, provider transaction IDs, and internal idempotent payment state handling; customer checkout remains disabled pending store rules and sandbox verification.
+- Immutable per-unit points ledger, paid-order idempotency, compensating reversals, and owner-scoped points history; rewards stay disabled until their terms are approved.
 - Responsive original storefront design, autoescaped product descriptions, health endpoints, and browser security headers.
 - Django Admin product/category management with explicit draft/review/published states.
 
@@ -74,6 +75,7 @@ See [architecture](docs/architecture.md), [ADR-0001](docs/decisions/0001-django-
 - Operations and recovery: [docs/operations.md](docs/operations.md)
 - Supplier permissions/setup gate: [docs/aliexpress-integration.md](docs/aliexpress-integration.md)
 - Payment setup gate: [docs/payments.md](docs/payments.md)
+- Points policy and ledger: [docs/points.md](docs/points.md)
 - Outstanding decisions and launch gates: [docs/launch-gates.md](docs/launch-gates.md)
 
 ## Verification status

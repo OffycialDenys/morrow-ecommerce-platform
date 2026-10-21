@@ -9,6 +9,6 @@
       <article class="order-line"><div><h2>{{ line.product_name }}</h2><p>{{ line.variant_label|default:line.sku }}</p><p>Qty {{ line.quantity }} · {{ line.unit_price_minor|money:order.currency }} each</p></div><strong>{{ line.line_total_minor|money:order.currency }}</strong></article>
     {% endfor %}
   </div>
-  <aside class="order-summary"><h2>Order summary</h2><p><span>Items</span><strong>{{ order.subtotal_minor|money:order.currency }}</strong></p><p><span>Shipping</span><strong>{{ order.shipping_minor|money:order.currency }}</strong></p><p><span>Tax</span><strong>{{ order.tax_minor|money:order.currency }}</strong></p><p class="order-total"><span>Total</span><strong>{{ order.total_minor|money:order.currency }}</strong></p><p>Payment: {{ order.get_payment_status_display }}</p><p>Fulfillment: {{ order.get_fulfillment_status_display }}</p></aside>
+  <aside class="order-summary"><h2>Order summary</h2><p><span>Items</span><strong>{{ order.subtotal_minor|money:order.currency }}</strong></p><p><span>Shipping</span><strong>{{ order.shipping_minor|money:order.currency }}</strong></p><p><span>Tax</span><strong>{{ order.tax_minor|money:order.currency }}</strong></p><p class="order-total"><span>Total</span><strong>{{ order.total_minor|money:order.currency }}</strong></p><p>Payment: {{ order.get_payment_status_display }}</p><p>Fulfillment: {{ order.get_fulfillment_status_display }}</p>{% if points_total is not None %}<p>Net points from this order: {{ points_total }}</p>{% endif %}</aside>
 </section>
 {% endblock %}

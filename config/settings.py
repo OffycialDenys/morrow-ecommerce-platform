@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "catalog.apps.CatalogConfig",
     "commerce.apps.CommerceConfig",
+    "promotions.apps.PromotionsConfig",
     "sitecore.apps.SitecoreConfig",
     "storefront.apps.StorefrontConfig",
 ]
@@ -209,3 +210,4 @@ STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
 PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
 PAYPAL_WEBHOOK_ID = os.environ.get("PAYPAL_WEBHOOK_ID", "")
+POINTS_PROGRAM_ENABLED = env_bool("POINTS_PROGRAM_ENABLED", default=False)

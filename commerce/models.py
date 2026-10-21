@@ -79,6 +79,7 @@ class OrderLine(models.Model):
     attributes = models.JSONField(default=dict, blank=True)
     quantity = models.PositiveIntegerField()
     unit_price_minor = models.PositiveBigIntegerField()
+    points_per_unit = models.PositiveIntegerField(default=0)
     line_total_minor = models.PositiveBigIntegerField()
 
     class Meta:

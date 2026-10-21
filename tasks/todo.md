@@ -37,9 +37,9 @@
   - Acceptance: repeated qualification events do not double-credit; refunds use compensating entries.
   - Implemented: configurable per-unit values, immutable order-line snapshots, idempotent paid-order credits, compensating partial/full reversals, permission-checked adjustments, and private paginated account history. Program defaults off.
   - Still needed: approved terms/values, refund/chargeback integration, adjustment request/approval UI, redemption policy, giveaway configuration/entries/auditable draw, and legal review.
-- [ ] Add verified-purchase review moderation and giveaway administration.
-  - Acceptance: review eligibility derives from order data; giveaway remains inactive until legal approval.
-  - Verify: permission, eligibility, audit, and draw tests.
+- [ ] Complete verified-purchase review operations and giveaway administration.
+  - Implemented: paid-and-delivered order-line eligibility, customer submission/edit flow, one-review-per-line constraint, rolling-hour limit, approved-only public summaries, moderator permission checks, and immutable status-change audit events.
+  - Still needed: approved review policy, customer abuse reporting and appeal path, moderation operations/queue targets, and the inactive giveaway system plus legal approval.
 - [ ] Complete provider setup, deployment/backup rehearsal, security/performance/accessibility checks, and final report.
   - Acceptance: every launch gate has evidence or a named blocker.
   - Verify: security scan, regression suite, Lighthouse methodology, restore rehearsal, and provider sandbox records.

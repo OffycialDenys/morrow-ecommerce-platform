@@ -178,6 +178,23 @@ small { font-size: .8rem; }
 .detail-placeholder .placeholder-shape { width: 12rem; height: 16rem; }
 .detail-placeholder .placeholder-shape::before { left: 4.4rem; width: 3rem; height: 4rem; top: -3rem; }
 .detail-copy { padding: 2.4rem 0 0; }
+.review-section { width: min(1120px, calc(100% - 4rem)); margin: 0 auto 6rem; }
+.review-section .section-heading { align-items: center; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.review-average { margin: 0; color: var(--ink-soft); font-size: .85rem; }
+.review-average strong { color: var(--ink); font-size: 1.15rem; }
+.review-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.review-card { min-width: 0; padding: 1.3rem; background: var(--white); }
+.review-rating { margin-bottom: .6rem; color: var(--rust-dark); font-size: .75rem; font-weight: 700; }
+.review-body { overflow-wrap: anywhere; }
+.review-byline, .review-empty, .review-state, .review-guidance { color: var(--ink-soft); font-size: .82rem; }
+.review-byline { margin: 0; }
+.review-empty { padding: 1.3rem 0; }
+.review-form-section { width: min(42rem, calc(100% - 4rem)); margin: 0 auto 6rem; }
+.review-guidance { max-width: 38rem; margin-bottom: 1.6rem; }
+.review-form { padding: clamp(1.3rem, 4vw, 2.2rem); background: var(--white); }
+.review-form .field textarea { width: 100%; min-height: 10rem; padding: .65rem; border: 1px solid #bdc0b5; border-radius: 0; background: var(--white); color: var(--ink); font: inherit; font-size: .88rem; resize: vertical; }
+.review-form .field input { max-width: 9rem; }
+.review-form .button { margin-top: .3rem; }
 .detail-copy h1 { margin: .4rem 0 1rem; font-size: clamp(2.4rem, 4vw, 4rem); }
 .detail-price { margin: 0 0 1.4rem; font-size: 1rem; font-weight: 650; }
 .product-description { color: var(--ink-soft); }
@@ -344,6 +361,9 @@ small { font-size: .8rem; }
   .detail-visual, .detail-visual > img { min-height: 22rem; }
   .detail-copy { padding-top: .5rem; }
   .detail-copy h1 { font-size: clamp(2.6rem, 12vw, 3.8rem); }
+  .review-section, .review-form-section { width: calc(100% - 2rem); margin-bottom: 4rem; }
+  .review-list { grid-template-columns: 1fr; }
+  .review-section .section-heading { flex-wrap: wrap; }
   .auth-shell { width: calc(100% - 2rem); margin: 1rem auto 3rem; grid-template-columns: 1fr; }
   .auth-aside { min-height: 18rem; padding: 2rem; }
   .auth-aside h1 { font-size: 3.6rem; }

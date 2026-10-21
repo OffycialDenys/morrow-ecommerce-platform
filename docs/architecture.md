@@ -13,7 +13,7 @@ The platform is a Django modular monolith. Server-rendered HTML is the primary s
 - `storefront`: presentation and request orchestration; business calculations stay in domain services.
 - `config`: environment configuration, URL routing, and production defaults.
 
-The current code implements the catalog, accounts, cart, order snapshots/history, Stripe and PayPal server adapters, payment attempt/event state handling, a disabled-by-default points ledger, health, and storefront slices. Provider checkout is not connected to customer order placement because market, shipping, tax, and payment decisions remain open. Giveaway administration and `reviews` are still planned work.
+The current code implements the catalog, accounts, cart, order snapshots/history, Stripe and PayPal server adapters, payment attempt/event state handling, a disabled-by-default points ledger, verified-purchase review submission and moderation, health, and storefront slices. Provider checkout is not connected to customer order placement because market, shipping, tax, and payment decisions remain open. Giveaway administration remains planned work.
 
 ## Initial decisions
 

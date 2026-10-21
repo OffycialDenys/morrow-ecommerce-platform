@@ -37,5 +37,22 @@
     <p class="detail-footnote">Availability is checked again when you update your bag. No item is reserved at this stage.</p>
   </div>
 </section>
+<section class="review-section" aria-labelledby="reviews-heading">
+  <div class="section-heading">
+    <div><p class="eyebrow">From customers</p><h2 id="reviews-heading">Reviews</h2></div>
+    {% if review_summary.count %}<p class="review-average"><strong>{{ review_summary.average }}</strong> / 5 · {{ review_summary.count }} review{{ review_summary.count|pluralize }}</p>{% endif %}
+  </div>
+  {% if product_reviews %}
+    <div class="review-list">
+      {% for review in product_reviews %}
+        <article class="review-card">
+          <p class="review-rating" aria-label="Rated {{ review.rating }} out of 5">{{ review.rating }} / 5</p>
+          <p class="review-body">{{ review.body|linebreaksbr }}</p>
+          <p class="review-byline">Verified buyer · {{ review.created_at|date:"F j, Y" }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}<p class="review-empty">No customer reviews yet.</p>{% endif %}
+</section>
 {% endblock %}
 {% block scripts %}<script src="{% static 'js/product.js' %}" defer></script>{% endblock %}

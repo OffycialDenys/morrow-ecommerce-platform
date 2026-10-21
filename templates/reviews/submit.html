@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Write a review — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro">
+  <p class="eyebrow"><a class="text-link" href="{% url 'accounts:order-detail' order_line.order.order_number %}">Back to your order</a></p>
+  <h1>{% if existing_review %}Edit your review{% else %}Write a review{% endif %}</h1>
+  <p>{{ order_line.product_name }} · {{ order_line.variant_label|default:order_line.sku }} · Qty {{ order_line.quantity }}</p>
+</section>
+<section class="review-form-section">
+  <p class="review-guidance">Your review will be checked by the store team before it appears publicly. Keep it useful and focused on your experience with the product.</p>
+  <form class="review-form" method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="field">
+      <label for="{{ form.rating.id_for_label }}">{{ form.rating.label }}</label>
+      {{ form.rating }}
+      {% if form.rating.errors %}<div class="form-errors">{{ form.rating.errors }}</div>{% endif %}
+      <small>Choose a whole number from 1 to 5.</small>
+    </div>
+    <div class="field">
+      <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
+      {{ form.body }}
+      {% if form.body.errors %}<div class="form-errors">{{ form.body.errors }}</div>{% endif %}
+      <small>Write 20 to 2,000 characters.</small>
+    </div>
+    <button class="button button-dark" type="submit">Send for moderation</button>
+  </form>
+</section>
+{% endblock %}

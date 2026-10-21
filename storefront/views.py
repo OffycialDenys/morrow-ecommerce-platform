@@ -8,6 +8,8 @@ from accounts.models import SavedProduct
 from catalog.forms import search_products
 from catalog.models import Category, Product, ProductVariant
 from promotions.points import get_points_balance
+from reviews.models import ProductReview
+from reviews.services import product_review_summary
 
 
 def home(request):
@@ -74,6 +76,10 @@ def product_detail(request, slug: str):
         request.user.is_authenticated
         and SavedProduct.objects.filter(user=request.user, product=product).exists()
     )
+    review_summary = product_review_summary(product)
+    product_reviews = ProductReview.objects.filter(
+        product=product, status=ProductReview.Status.APPROVED
+    ).order_by("-created_at", "-pk")[:10]
     return render(
         request,
         "storefront/product_detail.html",
@@ -82,6 +88,8 @@ def product_detail(request, slug: str):
             "variants": variants,
             "is_saved": saved,
             "has_available_variant": any(variant.can_be_added_to_cart() for variant in variants),
+            "review_summary": review_summary,
+            "product_reviews": product_reviews,
         },
     )
 

@@ -10,6 +10,7 @@ The current build is a verified foundation, not a production-ready store. Before
 6. Giveaway jurisdiction, eligibility, no-purchase entry requirements where applicable, official rules, and qualified legal review. Do not activate a giveaway before this gate is documented.
 7. Production host, trusted TLS proxy, database/storage encryption, backup retention, restore rehearsal, log retention, monitoring/alerts, and incident owner.
 8. Email verification, abuse/rate limits, privacy/retention/deletion workflows, and legal documents for actual markets.
-9. Accessibility review, representative Lighthouse/performance measurement, and browser/device coverage.
+9. Review terms, content retention, appeal and abuse-reporting process, moderation staffing, and any incentive disclosures.
+10. Accessibility review, representative Lighthouse/performance measurement, and browser/device coverage.
 
 No payments, supplier synchronization, giveaway, tax compliance, production deployment, or production-readiness claim has been verified.

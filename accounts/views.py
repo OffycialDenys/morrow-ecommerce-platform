@@ -20,6 +20,7 @@ from catalog.models import Product
 from commerce.models import Order
 from promotions.models import PointEntry
 from promotions.points import get_points_balance
+from reviews.models import ProductReview
 
 from .forms import RegistrationForm
 from .models import SavedProduct
@@ -118,10 +119,24 @@ def order_detail(request, order_number):
         user=request.user,
     )
     points_total = PointEntry.objects.filter(order=order).aggregate(total=Sum("points"))["total"]
+    lines = list(order.lines.all())
+    reviews_by_line = {
+        review.order_line_id: review
+        for review in ProductReview.objects.filter(
+            order_line__in=lines, customer=request.user
+        )
+    }
+    review_eligible = (
+        order.payment_status == Order.PaymentStatus.PAID
+        and order.fulfillment_status == Order.FulfillmentStatus.DELIVERED
+    )
+    for line in lines:
+        line.customer_review = reviews_by_line.get(line.pk)
+        line.review_eligible = review_eligible and line.variant_id is not None
     return render(
         request,
         "accounts/order_detail.html",
-        {"order": order, "points_total": points_total},
+        {"order": order, "points_total": points_total, "lines": lines},
     )
 
 

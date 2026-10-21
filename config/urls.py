@@ -13,4 +13,5 @@ urlpatterns = [
     path("", include("storefront.urls")),
     path("accounts/", include("accounts.urls")),
     path("cart/", include("commerce.urls")),
+    path("reviews/", include("reviews.urls")),
 ]

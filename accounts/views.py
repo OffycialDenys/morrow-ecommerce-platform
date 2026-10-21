@@ -11,10 +11,12 @@ from django.contrib.auth.views import (
 )
 from django.core.paginator import Paginator
 from django.db.models import Sum
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from catalog.models import Product
 from commerce.models import Order
@@ -22,6 +24,7 @@ from promotions.models import PointEntry
 from promotions.points import get_points_balance
 from reviews.models import ProductReview, ReviewAppeal
 
+from .exports import stream_account_export
 from .forms import RegistrationForm
 from .models import SavedProduct
 
@@ -161,3 +164,21 @@ def points_history(request):
             "page": page,
         },
     )
+
+
+@login_required
+@require_GET
+def download_account_data(request):
+    response = StreamingHttpResponse(
+        stream_account_export(request.user.pk),
+        content_type="application/json; charset=utf-8",
+    )
+    response[
+        "Content-Disposition"
+    ] = f'attachment; filename="morrow-account-data-{timezone.localdate().isoformat()}.json"'
+    response["Cache-Control"] = "private, no-store, max-age=0"
+    response["Pragma"] = "no-cache"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+    response["Referrer-Policy"] = "no-referrer"
+    return response

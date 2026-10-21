@@ -7,6 +7,7 @@ from .views import (
     StorePasswordResetConfirmView,
     StorePasswordResetDoneView,
     StorePasswordResetView,
+    download_account_data,
     order_detail,
     order_history,
     points_history,
@@ -38,4 +39,5 @@ urlpatterns = [
     path("orders/", order_history, name="orders"),
     path("orders/<uuid:order_number>/", order_detail, name="order-detail"),
     path("points/", points_history, name="points"),
+    path("data-export/", download_account_data, name="data-export"),
 ]

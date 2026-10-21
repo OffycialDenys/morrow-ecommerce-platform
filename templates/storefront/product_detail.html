@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load static commerce_tags %}
+{% block title %}{{ product.name }} — Morrow{% endblock %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="{% url 'storefront:home' %}">Home</a><span aria-hidden="true">/</span><a href="{% url 'storefront:shop' %}">Shop</a>{% if product.category %}<span aria-hidden="true">/</span><a href="{% url 'storefront:shop' %}?category={{ product.category.slug|urlencode }}">{{ product.category.name }}</a>{% endif %}</nav>
+<section class="product-detail">
+  <div class="detail-visual">
+    {% if product.image_url %}<img src="{{ product.image_url }}" alt="{{ product.name }}" referrerpolicy="no-referrer">{% else %}<div class="product-placeholder detail-placeholder" aria-label="No product image has been added"><span class="placeholder-shape"></span><small>Image pending</small></div>{% endif %}
+  </div>
+  <div class="detail-copy">
+    {% if product.category %}<p class="eyebrow">{{ product.category.name }}</p>{% else %}<p class="eyebrow">Morrow selection</p>{% endif %}
+    <h1>{{ product.name }}</h1>
+    {% if variants %}<p id="selected-price" class="detail-price">{{ variants.0.price_minor|money:product.currency }}</p>{% endif %}
+    {% if product.description %}<div class="product-description">{{ product.description|linebreaks }}</div>{% else %}<p class="muted">More details will be added by the store team.</p>{% endif %}
+
+    {% if user.is_authenticated %}
+      <form class="save-form" method="post" action="{% url 'accounts:toggle-saved' product.pk %}">
+        {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="save-button" type="submit">{% if is_saved %}♥ Saved for later{% else %}♡ Save for later{% endif %}</button>
+      </form>
+    {% else %}<a class="save-button save-link" href="{% url 'accounts:login' %}?next={{ request.get_full_path|urlencode }}">♡ Save for later</a>{% endif %}
+
+    {% if has_available_variant %}
+      <form class="add-to-cart-form" method="post" action="{% url 'commerce:add' %}" data-variant-form>
+        {% csrf_token %}
+        <label for="variant-choice">Choose an option</label>
+        <select id="variant-choice" name="variant_id" required data-variant-select>
+          {% for variant in variants %}<option value="{{ variant.pk }}" data-price="{{ variant.price_minor|money:product.currency }}" data-available="{{ variant.can_be_added_to_cart|yesno:'true,false' }}"{% if forloop.first %} selected{% endif %}>{{ variant.label|default:variant.sku }}{% if not variant.can_be_added_to_cart %} — unavailable{% endif %}</option>{% endfor %}
+        </select>
+        <div class="quantity-row"><label for="quantity">Quantity</label><input id="quantity" type="number" name="quantity" value="1" min="1" max="10" required></div>
+        <p class="availability-message" data-availability-message aria-live="polite"></p>
+        <button class="button button-dark button-full" type="submit" data-add-button>Add to bag</button>
+      </form>
+    {% else %}
+      <div class="availability-note"><span class="availability-dot" aria-hidden="true"></span><p>{% if variants %}No option is currently available to add to your bag.{% else %}Options and availability have not been confirmed.{% endif %}</p></div>
+    {% endif %}
+    <p class="detail-footnote">Availability is checked again when you update your bag. No item is reserved at this stage.</p>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/product.js' %}" defer></script>{% endblock %}

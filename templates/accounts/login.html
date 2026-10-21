@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Morrow{% endblock %}
+{% block content %}
+<section class="auth-shell"><div class="auth-aside"><p class="eyebrow">Your Morrow account</p><h1>A good place<br>to <em>pick up.</em></h1><p>Keep your saved pieces close and return when you’re ready.</p></div>
+  <div class="auth-panel"><p class="eyebrow">Welcome back</p><h2>Sign in</h2>
+    <form method="post" class="auth-form">{% csrf_token %}{% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}<div class="field"><label for="id_username">Email address</label><input id="id_username" type="email" name="username" autocomplete="email" required value="{{ form.username.value|default:'' }}" autofocus>{% if form.username.errors %}<div class="form-errors" role="alert">{{ form.username.errors }}</div>{% endif %}</div><div class="field"><label for="id_password">Password</label><input id="id_password" type="password" name="password" autocomplete="current-password" required>{% if form.password.errors %}<div class="form-errors" role="alert">{{ form.password.errors }}</div>{% endif %}</div><input type="hidden" name="next" value="{{ next }}"><button class="button button-dark button-full" type="submit">Sign in</button></form>
+    <a class="auth-support" href="{% url 'accounts:password_reset' %}">Forgot your password?</a><p class="auth-switch">New here? <a href="{% url 'accounts:register' %}">Create an account</a></p>
+  </div>
+</section>
+{% endblock %}

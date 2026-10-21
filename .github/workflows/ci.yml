@@ -1,0 +1,56 @@
+name: Django checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: morrow
+          POSTGRES_USER: morrow
+          POSTGRES_PASSWORD: ci-local-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U morrow -d morrow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://morrow:ci-local-only-password@127.0.0.1:5432/morrow
+      DJANGO_SECRET_KEY: ci-only-not-a-production-secret-000000000000000000000000000000000000000000
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,testserver
+      DJANGO_SECURE_SSL_REDIRECT: "true"
+      DJANGO_SECURE_HSTS_SECONDS: "31536000"
+      EMAIL_HOST: smtp.example.invalid
+      DEFAULT_FROM_EMAIL: CI <ci@example.test>
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Check formatting and lint
+        run: |
+          ruff format --check .
+          ruff check .
+      - name: Check migrations and deployment settings
+        run: |
+          python manage.py makemigrations --check --dry-run
+          python manage.py check --deploy
+      - name: Run tests
+        env:
+          DJANGO_DEBUG: "true"
+        run: python manage.py test
+      - name: Audit dependencies
+        run: pip-audit -r requirements.txt

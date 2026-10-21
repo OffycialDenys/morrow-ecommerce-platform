@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load commerce_tags %}
+{% block title %}Checkout status — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro checkout-intro"><p class="eyebrow">One more thing</p><h1>Checkout is <em>not open.</em></h1><p>Your bag is saved in this browser session.</p></section>
+<section class="checkout-status">
+  <div class="status-symbol" aria-hidden="true">i</div>
+  <div><h2>We’re preparing a safe checkout.</h2><p>Shipping destinations, tax rules, and verified payment methods have not been configured. We won’t collect delivery details or create an order until those rules are approved.</p><p>Nothing has been charged, reserved, or submitted.</p><a class="button button-dark" href="{% url 'commerce:cart' %}">Return to your bag</a></div>
+</section>
+{% endblock %}

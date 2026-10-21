@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% load commerce_tags %}
+{% block title %}Morrow — useful things, found with care{% endblock %}
+{% block content %}
+<section class="hero-wrap">
+  <div class="hero-copy">
+    <p class="eyebrow">A little more considered</p>
+    <h1>Good things.<br><em>Found.</em></h1>
+    <p class="hero-intro">A thoughtful place for the useful, the lasting, and the quietly delightful.</p>
+    <a class="button button-dark" href="{% url 'storefront:shop' %}">Explore the collection <span aria-hidden="true">↗</span></a>
+    <div class="hero-note"><span class="note-rule"></span><span>Small discoveries<br>for everyday life</span></div>
+  </div>
+  <div class="hero-art" aria-hidden="true">
+    <div class="art-sun"></div><div class="art-vase"><span></span></div>
+    <div class="art-book art-book-one"></div><div class="art-book art-book-two"></div>
+    <div class="art-stem art-stem-one"></div><div class="art-stem art-stem-two"></div>
+    <div class="art-caption">THE EVERYDAY EDIT <span>01 / 04</span></div>
+  </div>
+</section>
+
+<section class="category-strip" aria-label="Shop by category">
+  <p class="eyebrow">Browse by feeling</p>
+  <div class="category-links">
+    {% for category in categories %}
+      <a href="{% url 'storefront:shop' %}?category={{ category.slug|urlencode }}">{{ category.name }} <span aria-hidden="true">↗</span></a>
+    {% empty %}
+      <span class="muted">New categories will appear here as the collection is curated.</span>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="section-block collection-preview">
+  <div class="section-heading">
+    <div><p class="eyebrow">The collection</p><h2>Worth a closer look</h2></div>
+    <a class="text-link" href="{% url 'storefront:shop' %}">View all <span aria-hidden="true">↗</span></a>
+  </div>
+  {% if products %}
+    <div class="product-grid">
+      {% for product in products %}{% include "storefront/_product_card.html" with product=product %}{% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-catalog">
+      <span class="empty-mark" aria-hidden="true">M</span>
+      <div><h3>The shelves are being arranged.</h3><p>Products will appear here after they’ve been added and approved by the store team.</p></div>
+      <a href="{% url 'storefront:shop' %}" class="text-link">Browse the collection <span aria-hidden="true">↗</span></a>
+    </div>
+  {% endif %}
+</section>
+
+<section class="closing-note">
+  <p class="eyebrow">Morrow, in a sentence</p>
+  <p>Less scrolling. More <em>finding.</em></p>
+</section>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Your account — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro account-intro"><p class="eyebrow">Your space</p><h1>Welcome back.</h1><p>{{ request.user.email }}</p></section>
+<section class="account-grid">
+  <a class="account-tile" href="{% url 'accounts:saved' %}"><span class="tile-kicker">Your collection</span><h2>Saved pieces</h2><p>{{ saved_count }} saved item{{ saved_count|pluralize }}</p><span class="tile-arrow" aria-hidden="true">↗</span></a>
+  <div class="account-tile account-tile-muted"><span class="tile-kicker">Orders & points</span><h2>Coming with checkout</h2><p>Order history and points appear after payment and earning rules are configured.</p></div>
+  <div class="account-tile account-tile-muted"><span class="tile-kicker">Your details</span><h2>{{ request.user.first_name|default:"Account" }}</h2><p>Password recovery is available if you need to update your sign-in.</p><a class="text-link" href="{% url 'accounts:password_reset' %}">Reset password ↗</a></div>
+</section>
+<form class="signout-form" method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="text-link" type="submit">Sign out</button></form>
+{% endblock %}

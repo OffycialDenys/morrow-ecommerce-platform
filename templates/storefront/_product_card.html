@@ -1,0 +1,15 @@
+{% load commerce_tags %}
+<article class="product-card">
+  <a class="product-visual" href="{% url 'storefront:product-detail' product.slug %}" aria-label="View {{ product.name }}">
+    {% if product.image_url %}
+      <img src="{{ product.image_url }}" alt="{{ product.name }}" loading="lazy" referrerpolicy="no-referrer">
+    {% else %}
+      <div class="product-placeholder" aria-hidden="true"><span class="placeholder-shape"></span><small>Image pending</small></div>
+    {% endif %}
+    {% if product.category %}<span class="visual-label">{{ product.category.name }}</span>{% endif %}
+  </a>
+  <div class="product-card-info">
+    <h3><a href="{% url 'storefront:product-detail' product.slug %}">{{ product.name }}</a></h3>
+    <p class="product-price">{{ product.min_price|money:product.currency }}</p>
+  </div>
+</article>

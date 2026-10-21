@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% load commerce_tags %}
+{% block title %}Your bag — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro cart-intro"><p class="eyebrow">A few good finds</p><h1>Your <em>bag.</em></h1><p>Prices are checked from the current catalog. Items are not reserved.</p></section>
+<section class="cart-layout">
+  <div class="cart-lines">
+    {% for line in cart.lines %}
+      <article class="cart-line">
+        <div class="cart-line-art" aria-hidden="true"><span></span></div>
+        <div class="cart-line-main">
+          {% if line.variant %}<h2><a href="{% url 'storefront:product-detail' line.variant.product.slug %}">{{ line.variant.product.name }}</a></h2><p>{{ line.variant.label|default:line.variant.sku }}</p>{% else %}<h2>Unavailable item</h2>{% endif %}
+          {% if line.available %}
+            <p class="cart-unit-price">{{ line.variant.price_minor|money:line.variant.product.currency }} each</p>
+            <div class="cart-line-actions">
+              <form class="quantity-form" method="post" action="{% url 'commerce:update' line.variant_id %}">{% csrf_token %}<label class="visually-hidden" for="quantity-{{ line.variant_id }}">Quantity for {{ line.variant.product.name }}</label><input id="quantity-{{ line.variant_id }}" type="number" min="1" max="10" name="quantity" value="{{ line.quantity }}"><button type="submit" class="text-link">Update</button></form>
+              <form method="post" action="{% url 'commerce:remove' line.variant_id %}">{% csrf_token %}<button type="submit" class="text-link">Remove</button></form>
+            </div>
+          {% else %}<p class="unavailable-reason">{{ line.unavailable_reason }}</p><form method="post" action="{% url 'commerce:remove' line.variant_id %}">{% csrf_token %}<button type="submit" class="text-link">Remove this item</button></form>{% endif %}
+        </div>
+        <div class="cart-line-total">{% if line.available %}{{ line.line_total_minor|money:line.variant.product.currency }}{% else %}<span aria-label="Price unavailable">—</span>{% endif %}</div>
+      </article>
+    {% empty %}
+      <div class="empty-cart"><span class="empty-mark" aria-hidden="true">M</span><h2>Your bag is taking a breather.</h2><p>Find something you love and it’ll be waiting here.</p><a class="button button-dark" href="{% url 'storefront:shop' %}">Explore the collection</a></div>
+    {% endfor %}
+  </div>
+  {% if cart.lines %}
+  <aside class="cart-summary">
+    <p class="eyebrow">Summary</p><h2>Before the next step</h2>
+    {% if cart.can_continue %}<div class="summary-row"><span>Subtotal</span><strong>{{ cart.subtotal_minor|money:cart.currency }}</strong></div>{% else %}<p class="summary-alert">Remove or refresh unavailable items before continuing. A single currency is required for a total.</p>{% endif %}
+    <p class="summary-note">Shipping, taxes, and payment are not configured yet. No charge or order is created from this bag.</p>
+    <a class="button button-dark button-full{% if not cart.can_continue %} button-muted{% endif %}" href="{% url 'commerce:checkout' %}"{% if not cart.can_continue %} aria-disabled="true"{% endif %}>Review checkout status</a>
+    <a class="continue-link" href="{% url 'storefront:shop' %}">Continue browsing</a>
+  </aside>
+  {% endif %}
+</section>
+{% endblock %}

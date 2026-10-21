@@ -1,0 +1,43 @@
+# Implementation tasks
+
+## Foundation
+
+- [x] Bootstrap Django 5.2 LTS, configuration, custom email identity, and PostgreSQL-capable settings.
+  - Acceptance: app boots with environment-driven secrets and database; no credentials are hardcoded.
+  - Verify: migrate, `manage.py check`, and auth tests.
+- [x] Add development/prod Docker configuration, health checks, CI, environment template, and setup docs.
+  - Acceptance: Docker uses PostgreSQL, production has secure defaults, and setup is reproducible.
+  - Verify: compose config/build/start where Docker daemon permits; deployment check.
+
+## Catalog and accounts
+
+- [x] Add catalog entities, publication controls, admin, safe catalog API, and search/filter/pagination.
+  - Acceptance: only published products appear; variant prices are minor-unit integers; API filters/sorts are allowlisted.
+  - Verify: model/view/API tests, including malformed filters and unpublished products.
+- [x] Add account registration/login/logout and owner-scoped saved products.
+  - Acceptance: email is unique; customers cannot modify/read another customer's saved data.
+  - Verify: auth, CSRF, and cross-account request tests.
+
+## Commerce
+
+- [x] Add server-side cart calculations with variant availability and currency checks.
+  - Acceptance: client-provided prices are ignored; stale/unavailable items block checkout review.
+  - Verify: forged price, quantity, stock, unavailable variant, and mixed-currency tests.
+- [ ] Add durable order snapshots and owner-scoped order history.
+  - Acceptance: historical totals stay fixed; payment and fulfillment states are distinct.
+  - Verify: snapshot, authorization, duplicate order/event, and state transition tests.
+- [ ] Add provider adapters, idempotent webhook records, sandbox flows, refund/reconciliation operations.
+  - Acceptance: exact current provider contract is verified and sandbox tests run; no browser redirect marks an order paid.
+  - Verify: provider test doubles plus real sandbox evidence.
+
+## Promotions, reviews, and launch
+
+- [ ] Add immutable points ledger, duplicate event protection, and reversals.
+  - Acceptance: repeated qualification events do not double-credit; refunds use compensating entries.
+  - Verify: transaction/idempotency/concurrency tests.
+- [ ] Add verified-purchase review moderation and giveaway administration.
+  - Acceptance: review eligibility derives from order data; giveaway remains inactive until legal approval.
+  - Verify: permission, eligibility, audit, and draw tests.
+- [ ] Complete provider setup, deployment/backup rehearsal, security/performance/accessibility checks, and final report.
+  - Acceptance: every launch gate has evidence or a named blocker.
+  - Verify: security scan, regression suite, Lighthouse methodology, restore rehearsal, and provider sandbox records.

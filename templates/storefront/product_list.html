@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load commerce_tags %}
+{% block title %}Shop the collection — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro shop-intro">
+  <p class="eyebrow">The collection</p>
+  <h1>Find your <em>something.</em></h1>
+  <p>Browse the pieces currently published by the store team.</p>
+</section>
+
+<section class="shop-layout" aria-label="Product collection">
+  <aside class="filter-panel">
+    <h2>Refine</h2>
+    <form method="get" action="{% url 'storefront:shop' %}">
+      <div class="field"><label for="filter-query">Search</label><input id="filter-query" name="q" type="search" maxlength="100" value="{{ form.q.value|default:'' }}"></div>
+      <div class="field"><label for="filter-category">Category</label><select id="filter-category" name="category"><option value="">All categories</option>{% for category in categories %}<option value="{{ category.slug }}"{% if form.category.value == category.slug %} selected{% endif %}>{{ category.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="filter-currency">Currency</label><select id="filter-currency" name="currency"><option value="">Any currency</option>{% for currency in currencies %}<option value="{{ currency }}"{% if form.currency.value|upper == currency %} selected{% endif %}>{{ currency }}</option>{% endfor %}</select><small>Choose a currency to filter or sort by price.</small></div>
+      <div class="field-pair"><div class="field"><label for="filter-min">Minimum</label><input id="filter-min" name="minPrice" inputmode="decimal" type="number" min="0" step="any" value="{{ form.minPrice.value|default:'' }}"></div><div class="field"><label for="filter-max">Maximum</label><input id="filter-max" name="maxPrice" inputmode="decimal" type="number" min="0" step="any" value="{{ form.maxPrice.value|default:'' }}"></div></div>
+      <div class="field"><label for="filter-sort">Sort by</label><select id="filter-sort" name="sort">{% for value,label in form.fields.sort.choices %}<option value="{{ value }}"{% if form.sort.value == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+      {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form %}{% if field.errors %}<div class="form-errors" role="alert">{{ field.errors }}</div>{% endif %}{% endfor %}
+      <button class="button button-dark button-full" type="submit">Apply filters</button>
+      <a class="clear-filters" href="{% url 'storefront:shop' %}">Clear all</a>
+    </form>
+  </aside>
+
+  <div class="results-panel">
+    <div class="results-bar"><p>{% if page %}{{ page.paginator.count }} piece{{ page.paginator.count|pluralize }}{% else %}No results{% endif %}</p><span>Thoughtfully selected</span></div>
+    {% if page and page.object_list %}
+      <div class="product-grid product-grid-shop">{% for product in page.object_list %}{% include "storefront/_product_card.html" with product=product %}{% endfor %}</div>
+      {% if page.has_other_pages %}<nav class="pagination" aria-label="Product pages">{% if previous_page_url %}<a href="{{ previous_page_url }}" rel="prev">← Previous</a>{% endif %}<span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>{% if next_page_url %}<a href="{{ next_page_url }}" rel="next">Next →</a>{% endif %}</nav>{% endif %}
+    {% elif form.is_valid %}
+      <div class="empty-results"><span class="eyebrow">No matches yet</span><h2>Try a different search.</h2><p>Clear a filter or search for something else.</p><a class="text-link" href="{% url 'storefront:shop' %}">Clear filters ↗</a></div>
+    {% else %}
+      <div class="empty-results"><span class="eyebrow">Catalog opening</span><h2>The collection is still taking shape.</h2><p>Only approved, published products are shown here.</p></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

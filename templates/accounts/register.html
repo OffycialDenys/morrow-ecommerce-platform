@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Create an account — Morrow{% endblock %}
+{% block content %}
+<section class="auth-shell"><div class="auth-aside"><p class="eyebrow">Your Morrow account</p><h1>Keep the good<br>finds <em>close.</em></h1><p>Save pieces for later and keep your details together.</p></div>
+  <div class="auth-panel"><p class="eyebrow">A fresh start</p><h2>Create an account</h2>
+    <form method="post" class="auth-form">{% csrf_token %}{% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}<div class="field"><label for="id_email">Email address</label><input id="id_email" type="email" name="email" autocomplete="email" required value="{{ form.email.value|default:'' }}">{% if form.email.errors %}<div class="form-errors" role="alert">{{ form.email.errors }}</div>{% endif %}</div><div class="field"><label for="id_password1">Password</label><input id="id_password1" type="password" name="password1" autocomplete="new-password" required aria-describedby="password-help">{% if form.password1.help_text %}<small id="password-help">Use at least 12 characters and avoid common passwords.</small>{% endif %}{% if form.password1.errors %}<div class="form-errors" role="alert">{{ form.password1.errors }}</div>{% endif %}</div><div class="field"><label for="id_password2">Confirm password</label><input id="id_password2" type="password" name="password2" autocomplete="new-password" required>{% if form.password2.errors %}<div class="form-errors" role="alert">{{ form.password2.errors }}</div>{% endif %}</div><button class="button button-dark button-full" type="submit">Create account</button></form>
+    <p class="auth-switch">Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a></p>
+  </div>
+</section>
+{% endblock %}

@@ -210,7 +210,8 @@ class AccountDataExportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/json; charset=utf-8")
         self.assertIn('attachment; filename="morrow-account-data-', response["Content-Disposition"])
-        self.assertEqual(response["Cache-Control"], "private, no-store, max-age=0")
+        self.assertIn("private", response["Cache-Control"])
+        self.assertIn("no-store", response["Cache-Control"])
         self.assertEqual(payload["schema_version"], 1)
         self.assertEqual(payload["account"]["email"], self.owner.email)
         self.assertNotIn("password", payload["account"])
@@ -226,3 +227,21 @@ class AccountDataExportTests(TestCase):
         self.assertEqual(event.actor, self.owner)
         self.assertEqual(event.subject, self.owner)
         self.assertEqual(str(event.request_id), response["X-Request-ID"])
+
+    def test_signed_in_account_responses_are_not_cacheable(self):
+        self.client.force_login(self.owner)
+        urls = (
+            reverse("storefront:account"),
+            reverse("accounts:saved"),
+            reverse("accounts:orders"),
+            reverse("accounts:order-detail", args=[self.order.order_number]),
+            reverse("accounts:points"),
+            reverse("accounts:data-export"),
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("no-store", response["Cache-Control"])
+                self.assertIn("private", response["Cache-Control"])

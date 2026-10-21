@@ -13,6 +13,7 @@
 - Supplier staging imports are disabled by default, permission-checked, batch-bounded, validated at the adapter boundary, and isolated from the public catalog. Supplier image URLs are stored but never fetched by the application.
 - Review reports and appeals require authenticated customers and are unique per customer/review or per review. Staff resolution requires the review moderation permission, and report, appeal, and moderation decisions retain separate immutable domain audit events.
 - Signed-in customers can download a streamed, versioned JSON export of their account profile and customer-facing saved-product, order, payment-attempt, points, giveaway, and review records. The response is owner-scoped and marked private/no-store; its current scope and exclusions are documented in `docs/account-data-export.md`.
+- Signed-in account, saved-product, order, points, and data-export responses are marked private and no-store to avoid retention in browser or intermediary caches.
 - Every response receives a server-generated request ID. Account-data exports also create an immutable, staff-readable audit event containing only the action, actor and subject references, request ID, and timestamp.
 - Production settings require an externally supplied secret, enable secure session/CSRF cookies, SSL redirect, HSTS, and compressed manifest static assets.
 - Runtime dependencies are pinned in `requirements.txt`; CI runs `pip-audit`.

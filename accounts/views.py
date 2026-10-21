@@ -16,6 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 
 from catalog.models import Product
@@ -97,6 +98,7 @@ def toggle_saved_product(request, product_id: int):
     return redirect("storefront:shop")
 
 
+@never_cache
 @login_required
 def saved_products(request):
     from django.db.models import Min, Q
@@ -110,12 +112,14 @@ def saved_products(request):
     return render(request, "storefront/saved_products.html", {"products": products})
 
 
+@never_cache
 @login_required
 def order_history(request):
     orders = Order.objects.filter(user=request.user).prefetch_related("lines")
     return render(request, "accounts/orders.html", {"orders": orders})
 
 
+@never_cache
 @login_required
 def order_detail(request, order_number):
     order = get_object_or_404(
@@ -152,6 +156,7 @@ def order_detail(request, order_number):
     )
 
 
+@never_cache
 @login_required
 def points_history(request):
     entries = PointEntry.objects.filter(customer=request.user).select_related(
@@ -168,6 +173,7 @@ def points_history(request):
     )
 
 
+@never_cache
 @login_required
 @require_GET
 def download_account_data(request):

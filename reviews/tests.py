@@ -21,6 +21,7 @@ from reviews.models import (
 from reviews.services import (
     ReviewError,
     ReviewRateLimited,
+    ReviewReportRateLimited,
     appeal_review,
     moderate_review,
     product_review_summary,
@@ -390,6 +391,50 @@ class ProductReviewTests(TestCase):
                 review_id=review.pk,
                 category=ReviewReport.Category.SPAM,
             )
+
+    @override_settings(REVIEW_REPORT_RATE_LIMIT_HOURLY=2)
+    def test_review_reports_are_rate_limited_per_account(self):
+        moderator = get_user_model().objects.create_superuser(
+            "report-limit-moderator@example.com", "Moderator-safe-passphrase-114!"
+        )
+        reviews = []
+        for index in range(3):
+            line = self.order_line if index == 0 else self._new_delivered_order_line()
+            review = submit_review(
+                self.customer,
+                order_line_id=line.pk,
+                rating=5,
+                body="Lovely handmade bowl with a beautiful glaze.",
+            )
+            moderate_review(
+                review,
+                status=ProductReview.Status.APPROVED,
+                moderator=moderator,
+                reason="Reviewed against the store policy.",
+            )
+            reviews.append(review)
+
+        for review in reviews[:2]:
+            report_review(
+                self.other_customer,
+                review_id=review.pk,
+                category=ReviewReport.Category.SPAM,
+            )
+        with self.assertRaises(ReviewReportRateLimited):
+            report_review(
+                self.other_customer,
+                review_id=reviews[2].pk,
+                category=ReviewReport.Category.SPAM,
+            )
+        self.assertEqual(ReviewReport.objects.filter(reporter=self.other_customer).count(), 2)
+
+        self.client.force_login(self.other_customer)
+        response = self.client.post(
+            reverse("reviews:report", args=[reviews[2].pk]),
+            {"category": ReviewReport.Category.SPAM, "details": "Repeated promotional material."},
+        )
+        self.assertEqual(response.status_code, 429)
+        self.assertContains(response, "report limit", status_code=429)
 
     def test_report_action_requires_review_moderation_and_leaves_audit_event(self):
         review, moderator = self._make_moderated_review(ProductReview.Status.APPROVED)

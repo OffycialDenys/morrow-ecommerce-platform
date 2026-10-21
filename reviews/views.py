@@ -11,6 +11,7 @@ from .models import ProductReview, ReviewAppeal, ReviewReport
 from .services import (
     ReviewError,
     ReviewRateLimited,
+    ReviewReportRateLimited,
     appeal_review,
     is_review_eligible,
     report_review,
@@ -97,6 +98,10 @@ def report(request, review_id: int):
             )
         except ReviewError as error:
             form.add_error(None, str(error))
+            if isinstance(error, ReviewReportRateLimited):
+                return render(
+                    request, "reviews/report.html", {"form": form, "review": review}, status=429
+                )
         else:
             messages.success(request, "Thank you. The review was sent to the store team.")
             return redirect("storefront:product-detail", slug=review.product.slug)

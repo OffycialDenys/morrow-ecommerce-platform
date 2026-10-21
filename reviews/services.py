@@ -31,6 +31,10 @@ class ReviewRateLimited(ReviewError):
     """The customer has reached the review submission limit for the current hour."""
 
 
+class ReviewReportRateLimited(ReviewError):
+    """The customer has reached the review-report limit for the current hour."""
+
+
 def _clean_review(rating: int, body: str) -> tuple[int, str]:
     if type(rating) is not int or not 1 <= rating <= 5:  # noqa: E721
         raise ReviewError("Choose a rating from one to five stars.")
@@ -156,6 +160,14 @@ def report_review(reporter, *, review_id: int, category: str, details: str = "")
 
     try:
         with transaction.atomic():
+            reporter = get_user_model().objects.select_for_update().get(pk=reporter.pk)
+            window_start = timezone.now() - timedelta(hours=1)
+            rate_limit = getattr(settings, "REVIEW_REPORT_RATE_LIMIT_HOURLY", 10)
+            recent_reports = ReviewReport.objects.filter(
+                reporter=reporter, created_at__gte=window_start
+            ).count()
+            if recent_reports >= rate_limit:
+                raise ReviewReportRateLimited("You have reached the report limit. Try again later.")
             review = (
                 ProductReview.objects.select_for_update()
                 .select_related("customer")

@@ -27,4 +27,5 @@ Use `.env.example` as a local development template only. Store production secret
 | `POINTS_PROGRAM_ENABLED` | Enables per-unit points posting for paid orders. | Defaults to `false`; enable only after point terms and earning values are approved. |
 | `GIVEAWAYS_ENABLED` | Enables public giveaway listing and free-entry pages. | Defaults to `false`; enable only after counsel-reviewed rules, operating controls, and eligibility checks are ready. |
 | `REVIEW_RATE_LIMIT_HOURLY` | Maximum review submissions or edits per customer in a rolling hour. | Defaults to 5; must be a positive integer. |
+| `REVIEW_REPORT_RATE_LIMIT_HOURLY` | Maximum review reports per customer in a rolling hour. | Defaults to 10; must be a positive integer and requires approved abuse policy before launch. |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Local Compose PostgreSQL setup. | Local-only values; use managed database credentials in production. |

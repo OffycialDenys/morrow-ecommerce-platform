@@ -10,18 +10,18 @@
   <p class="review-guidance">Your review will be checked by the store team before it appears publicly. Keep it useful and focused on your experience with the product.</p>
   <form class="review-form" method="post">
     {% csrf_token %}
-    {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     <div class="field">
       <label for="{{ form.rating.id_for_label }}">{{ form.rating.label }}</label>
       {{ form.rating }}
-      {% if form.rating.errors %}<div class="form-errors">{{ form.rating.errors }}</div>{% endif %}
-      <small>Choose a whole number from 1 to 5.</small>
+      {% if form.rating.errors %}<div class="form-errors" role="alert">{{ form.rating.errors }}</div>{% endif %}
+      <small id="review-rating-help">Choose a whole number from 1 to 5.</small>
     </div>
     <div class="field">
       <label for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
       {{ form.body }}
-      {% if form.body.errors %}<div class="form-errors">{{ form.body.errors }}</div>{% endif %}
-      <small>Write 20 to 2,000 characters.</small>
+      {% if form.body.errors %}<div class="form-errors" role="alert">{{ form.body.errors }}</div>{% endif %}
+      <small id="review-body-help">Write 20 to 2,000 characters.</small>
     </div>
     <button class="button button-dark" type="submit">Send for moderation</button>
   </form>

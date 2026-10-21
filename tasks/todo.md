@@ -46,4 +46,6 @@
   - Still needed: approved review policy, repeat-abuse controls, queue service targets/alerts, moderation staffing, retention rules, and any incentive disclosures.
 - [ ] Complete provider setup, deployment/backup rehearsal, security/performance/accessibility checks, and final report.
   - Acceptance: every launch gate has evidence or a named blocker.
+  - Implemented: keyboard focus visibility, improved small-text contrast and form-boundary contrast, 24px minimum targets for key navigation/action links, and announced review/giveaway form errors.
+  - Still needed: full WCAG 2.2 AA review at 400% zoom, representative browser/screen-reader checks, complete target-size audit, Lighthouse measurements, and device coverage.
   - Verify: security scan, regression suite, Lighthouse methodology, restore rehearsal, and provider sandbox records.

@@ -4,13 +4,24 @@ from .models import ProductReview, ReviewAppeal, ReviewReport
 
 
 class ProductReviewForm(forms.Form):
-    rating = forms.IntegerField(min_value=1, max_value=5, label="Rating")
+    rating = forms.IntegerField(
+        min_value=1,
+        max_value=5,
+        label="Rating",
+        widget=forms.NumberInput(attrs={"aria-describedby": "review-rating-help"}),
+    )
     body = forms.CharField(
         min_length=20,
         max_length=2000,
         strip=True,
         label="Your review",
-        widget=forms.Textarea(attrs={"rows": 6, "maxlength": 2000}),
+        widget=forms.Textarea(
+            attrs={
+                "rows": 6,
+                "maxlength": 2000,
+                "aria-describedby": "review-body-help",
+            }
+        ),
     )
 
 
@@ -53,7 +64,9 @@ class ReviewReportForm(forms.Form):
         max_length=1000,
         strip=True,
         label="Additional details",
-        widget=forms.Textarea(attrs={"rows": 5, "maxlength": 1000}),
+        widget=forms.Textarea(
+            attrs={"rows": 5, "maxlength": 1000, "aria-describedby": "report-details-help"}
+        ),
     )
 
 
@@ -63,7 +76,9 @@ class ReviewAppealForm(forms.Form):
         max_length=1200,
         strip=True,
         label="Why should we review this decision?",
-        widget=forms.Textarea(attrs={"rows": 6, "maxlength": 1200}),
+        widget=forms.Textarea(
+            attrs={"rows": 6, "maxlength": 1200, "aria-describedby": "appeal-reason-help"}
+        ),
     )
 
 

@@ -30,8 +30,8 @@
         <form class="giveaway-entry-form" method="post" action="{% url 'promotions:giveaway-enter' campaign.slug %}">
           {% csrf_token %}
           {{ entry_form.entry_nonce }}
-          {% if entry_form.non_field_errors %}<div class="form-errors">{{ entry_form.non_field_errors }}</div>{% endif %}
-          <div class="field"><label for="{{ entry_form.region.id_for_label }}">{{ entry_form.region.label }}</label>{{ entry_form.region }}{% if entry_form.region.errors %}<div class="form-errors">{{ entry_form.region.errors }}</div>{% endif %}</div>
+          {% if entry_form.non_field_errors %}<div class="form-errors" role="alert">{{ entry_form.non_field_errors }}</div>{% endif %}
+          <div class="field"><label for="{{ entry_form.region.id_for_label }}">{{ entry_form.region.label }}</label>{{ entry_form.region }}{% if entry_form.region.errors %}<div class="form-errors" role="alert">{{ entry_form.region.errors }}</div>{% endif %}</div>
           <button class="button button-dark button-full" type="submit">Submit free entry</button>
         </form>
       {% else %}<p>You have reached the entry limit for this giveaway.</p>{% endif %}

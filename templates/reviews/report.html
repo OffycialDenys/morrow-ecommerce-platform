@@ -10,17 +10,17 @@
   <blockquote class="review-body">{{ review.body|linebreaksbr }}</blockquote>
   <form class="review-form" method="post">
     {% csrf_token %}
-    {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     <div class="field">
       <label for="{{ form.category.id_for_label }}">{{ form.category.label }}</label>
       {{ form.category }}
-      {% if form.category.errors %}<div class="form-errors">{{ form.category.errors }}</div>{% endif %}
+      {% if form.category.errors %}<div class="form-errors" role="alert">{{ form.category.errors }}</div>{% endif %}
     </div>
     <div class="field">
       <label for="{{ form.details.id_for_label }}">{{ form.details.label }}</label>
       {{ form.details }}
-      {% if form.details.errors %}<div class="form-errors">{{ form.details.errors }}</div>{% endif %}
-      <small>Optional, up to 1,000 characters.</small>
+      {% if form.details.errors %}<div class="form-errors" role="alert">{{ form.details.errors }}</div>{% endif %}
+      <small id="report-details-help">Optional, up to 1,000 characters.</small>
     </div>
     <button class="button button-dark" type="submit">Send report</button>
   </form>

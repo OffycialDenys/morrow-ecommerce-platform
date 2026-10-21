@@ -11,12 +11,12 @@
   <blockquote class="review-body">{{ review.body|linebreaksbr }}</blockquote>
   <form class="review-form" method="post">
     {% csrf_token %}
-    {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+    {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
     <div class="field">
       <label for="{{ form.reason.id_for_label }}">{{ form.reason.label }}</label>
       {{ form.reason }}
-      {% if form.reason.errors %}<div class="form-errors">{{ form.reason.errors }}</div>{% endif %}
-      <small>Write 30 to 1,200 characters.</small>
+      {% if form.reason.errors %}<div class="form-errors" role="alert">{{ form.reason.errors }}</div>{% endif %}
+      <small id="appeal-reason-help">Write 30 to 1,200 characters.</small>
     </div>
     <button class="button button-dark" type="submit">Send appeal</button>
   </form>

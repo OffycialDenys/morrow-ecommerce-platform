@@ -89,5 +89,8 @@ def account(request):
     return render(
         request,
         "storefront/account.html",
-        {"saved_count": SavedProduct.objects.filter(user=request.user).count()},
+        {
+            "saved_count": SavedProduct.objects.filter(user=request.user).count(),
+            "order_count": request.user.orders.count(),
+        },
     )

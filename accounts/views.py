@@ -15,6 +15,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from catalog.models import Product
+from commerce.models import Order
 
 from .forms import RegistrationForm
 from .models import SavedProduct
@@ -97,3 +98,19 @@ def saved_products(request):
         .prefetch_related("variants")
     )
     return render(request, "storefront/saved_products.html", {"products": products})
+
+
+@login_required
+def order_history(request):
+    orders = Order.objects.filter(user=request.user).prefetch_related("lines")
+    return render(request, "accounts/orders.html", {"orders": orders})
+
+
+@login_required
+def order_detail(request, order_number):
+    order = get_object_or_404(
+        Order.objects.prefetch_related("lines"),
+        order_number=order_number,
+        user=request.user,
+    )
+    return render(request, "accounts/order_detail.html", {"order": order})

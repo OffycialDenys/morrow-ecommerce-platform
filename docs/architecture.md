@@ -13,7 +13,7 @@ The platform is a Django modular monolith. Server-rendered HTML is the primary s
 - `storefront`: presentation and request orchestration; business calculations stay in domain services.
 - `config`: environment configuration, URL routing, and production defaults.
 
-The current code implements the catalog, accounts, cart, health, and storefront slices. `promotions`, `reviews`, and `integrations` are planned domain boundaries; they do not yet exist as application modules or contain production functionality.
+The current code implements the catalog, accounts, cart, order snapshots/history, health, and storefront slices. Checkout is not connected to order creation yet. `promotions`, `reviews`, and `integrations` are planned domain boundaries; they do not yet exist as application modules or contain production functionality.
 
 ## Initial decisions
 

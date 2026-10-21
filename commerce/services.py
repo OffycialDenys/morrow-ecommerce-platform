@@ -1,8 +1,15 @@
+import json
 from dataclasses import dataclass
+from hashlib import sha256
+from uuid import UUID
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError, transaction
 
-from catalog.models import ProductVariant
+from catalog.models import ProductVariant, validate_iso_currency
+
+from .models import Order, OrderLine
 
 
 class CartError(ValueError):
@@ -73,22 +80,29 @@ def _unavailable_reason(variant: ProductVariant) -> str:
     return "This option is no longer available."
 
 
-def cart_summary(session) -> CartSummary:
-    items = _valid_session_items(session)
-    variants = ProductVariant.objects.filter(pk__in=items).select_related("product")
-    found = {variant.pk: variant for variant in variants}
+def _summary_from_variants(items: dict[int, int], found: dict[int, ProductVariant]) -> CartSummary:
     lines: list[CartLine] = []
 
     for variant_id, quantity in items.items():
         variant = found.get(variant_id)
         if variant is None:
             lines.append(CartLine(variant_id, quantity, None, False, "This item no longer exists."))
-        elif _variant_is_available(variant):
-            lines.append(CartLine(variant_id, quantity, variant, True))
-        else:
+        elif not _variant_is_available(variant):
             lines.append(
                 CartLine(variant_id, quantity, variant, False, _unavailable_reason(variant))
             )
+        elif quantity > (variant.available_units or 0):
+            lines.append(
+                CartLine(
+                    variant_id,
+                    quantity,
+                    variant,
+                    False,
+                    "The quantity in your bag is no longer available.",
+                )
+            )
+        else:
+            lines.append(CartLine(variant_id, quantity, variant, True))
 
     currencies = {line.variant.product.currency for line in lines if line.variant is not None}
     is_single_currency = len(currencies) == 1
@@ -97,6 +111,124 @@ def cart_summary(session) -> CartSummary:
     currency = next(iter(currencies)) if is_single_currency else None
     subtotal = sum(line.line_total_minor or 0 for line in lines) if can_continue else None
     return CartSummary(lines, currency, subtotal, can_continue)
+
+
+def cart_summary(session) -> CartSummary:
+    items = _valid_session_items(session)
+    variants = ProductVariant.objects.filter(pk__in=items).select_related("product")
+    found = {variant.pk: variant for variant in variants}
+    return _summary_from_variants(items, found)
+
+
+def create_order_snapshot(
+    user,
+    session,
+    *,
+    idempotency_key,
+    shipping_minor: int,
+    tax_minor: int,
+    currency: str,
+) -> Order:
+    """Persist a server-priced order snapshot from a trusted, server-calculated quote."""
+    if not getattr(user, "is_authenticated", False) or user.pk is None:
+        raise CartError("Sign in before placing an order.")
+    if not isinstance(idempotency_key, UUID):
+        raise CartError("A valid checkout idempotency key is required.")
+    if type(shipping_minor) is not int or type(tax_minor) is not int:
+        raise CartError("Shipping and tax must be integer minor-unit amounts.")
+    if shipping_minor < 0 or tax_minor < 0:
+        raise CartError("Shipping and tax amounts cannot be negative.")
+    try:
+        validate_iso_currency(currency)
+    except ValidationError as error:
+        raise CartError("Choose a supported currency for this order.") from error
+    currency = currency.upper()
+
+    max_amount = 2**63 - 1
+    if shipping_minor > max_amount or tax_minor > max_amount:
+        raise CartError("The quoted amount is outside the supported range.")
+
+    items = _valid_session_items(session)
+    fingerprint_payload = {
+        "currency": currency,
+        "items": sorted(items.items()),
+        "shipping_minor": shipping_minor,
+        "tax_minor": tax_minor,
+        "user_id": user.pk,
+    }
+    request_fingerprint = sha256(
+        json.dumps(fingerprint_payload, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+
+    with transaction.atomic():
+        existing = Order.objects.select_for_update().filter(idempotency_key=idempotency_key).first()
+        if existing is not None:
+            if existing.user_id != user.pk:
+                raise CartError("That checkout request cannot be used for this account.")
+            if existing.request_fingerprint != request_fingerprint:
+                raise CartError(
+                    "That checkout request key was already used with different details."
+                )
+            return existing
+
+        if not items:
+            raise CartError("Your bag is empty.")
+        variants = list(
+            ProductVariant.objects.select_for_update()
+            .filter(pk__in=items)
+            .select_related("product")
+            .order_by("pk")
+        )
+        found = {variant.pk: variant for variant in variants}
+        summary = _summary_from_variants(items, found)
+        if not summary.can_continue or summary.subtotal_minor is None:
+            raise CartError("Your bag has unavailable items. Review it before continuing.")
+        if summary.currency != currency:
+            raise CartError("The shipping and tax quote does not match your bag's currency.")
+
+        total_minor = summary.subtotal_minor + shipping_minor + tax_minor
+        if total_minor > max_amount:
+            raise CartError("The quoted order total is outside the supported range.")
+
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(
+                    idempotency_key=idempotency_key,
+                    request_fingerprint=request_fingerprint,
+                    user=user,
+                    buyer_email=user.email,
+                    currency=currency,
+                    subtotal_minor=summary.subtotal_minor,
+                    shipping_minor=shipping_minor,
+                    tax_minor=tax_minor,
+                    total_minor=total_minor,
+                )
+                OrderLine.objects.bulk_create(
+                    [
+                        OrderLine(
+                            order=order,
+                            variant=found[line.variant_id],
+                            product_name=found[line.variant_id].product.name,
+                            variant_label=found[line.variant_id].label,
+                            sku=found[line.variant_id].sku,
+                            attributes=found[line.variant_id].attributes,
+                            quantity=line.quantity,
+                            unit_price_minor=found[line.variant_id].price_minor,
+                            line_total_minor=found[line.variant_id].price_minor * line.quantity,
+                        )
+                        for line in summary.lines
+                    ]
+                )
+        except IntegrityError:
+            existing = Order.objects.filter(idempotency_key=idempotency_key).first()
+            if existing is None:
+                raise
+            if existing.user_id != user.pk or existing.request_fingerprint != request_fingerprint:
+                raise CartError(
+                    "That checkout request key was already used with different details."
+                )
+            return existing
+        return order
 
 
 def add_variant(session, variant_id: int, quantity: int) -> None:

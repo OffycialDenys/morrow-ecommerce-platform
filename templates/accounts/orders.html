@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load commerce_tags %}
+{% block title %}Order history — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro"><p class="eyebrow">Your purchases</p><h1>Order history</h1><p>Each order keeps the item and price details from the time it was placed.</p></section>
+<section class="content-section">
+  {% if orders %}
+    <div class="order-list">
+      {% for order in orders %}
+        <a class="order-row" href="{% url 'accounts:order-detail' order.order_number %}">
+          <span><strong>Order {{ order.order_number|slice:":8" }}</strong><small>{{ order.created_at|date:"M j, Y" }} · {{ order.lines.count }} item{{ order.lines.count|pluralize }}</small></span>
+          <span><strong>{{ order.total_minor|money:order.currency }}</strong><small>{{ order.get_payment_status_display }} · {{ order.get_fulfillment_status_display }}</small></span>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state"><span class="empty-mark" aria-hidden="true">○</span><h2>No orders yet</h2><p>Your purchases will appear here after checkout opens.</p><a class="button button-dark" href="{% url 'storefront:shop' %}">Explore the collection</a></div>
+  {% endif %}
+</section>
+{% endblock %}

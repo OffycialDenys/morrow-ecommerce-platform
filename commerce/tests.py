@@ -1,13 +1,17 @@
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from catalog.models import Product, ProductVariant
+from commerce.models import Order
 from commerce.money import format_minor, major_to_minor, minor_to_major
-from commerce.services import CartError, add_variant, cart_summary
+from commerce.services import CartError, add_variant, cart_summary, create_order_snapshot
 
 
 class MoneyTests(TestCase):
@@ -96,6 +100,90 @@ class CartFlowTests(TestCase):
         self.assertRedirects(response, reverse("commerce:cart"))
         self.assertEqual(cart_summary(self.client.session).lines[0].quantity, 1)
 
+    def test_cart_blocks_checkout_if_inventory_falls_below_cart_quantity(self):
+        self.client.post(reverse("commerce:add"), {"variant_id": self.variant.pk, "quantity": 3})
+        self.variant.available_units = 2
+        self.variant.save()
+
+        summary = cart_summary(self.client.session)
+
+        self.assertFalse(summary.can_continue)
+        self.assertIsNone(summary.subtotal_minor)
+        self.assertFalse(summary.lines[0].available)
+
+    def test_order_snapshot_is_idempotent_and_keeps_catalog_values(self):
+        user = get_user_model().objects.create_user("buyer@example.com", "passphrase-1234")
+        self.client.post(reverse("commerce:add"), {"variant_id": self.variant.pk, "quantity": 2})
+        session = self.client.session
+        idempotency_key = uuid.uuid4()
+
+        order = create_order_snapshot(
+            user,
+            session,
+            idempotency_key=idempotency_key,
+            shipping_minor=499,
+            tax_minor=245,
+            currency="USD",
+        )
+        self.variant.price_minor = 3000
+        self.variant.save()
+        retry = create_order_snapshot(
+            user,
+            session,
+            idempotency_key=idempotency_key,
+            shipping_minor=499,
+            tax_minor=245,
+            currency="USD",
+        )
+
+        self.assertEqual(retry.pk, order.pk)
+        self.assertEqual(order.subtotal_minor, 4900)
+        self.assertEqual(order.total_minor, 5644)
+        self.assertEqual(order.lines.get().unit_price_minor, 2450)
+        self.assertEqual(order.lines.get().product_name, "Everyday Tote")
+        self.assertEqual(session["cart_items"], {str(self.variant.pk): 2})
+
+    def test_order_snapshot_rejects_invalid_server_quote_before_creating_order(self):
+        user = get_user_model().objects.create_user("buyer@example.com", "passphrase-1234")
+        self.client.post(reverse("commerce:add"), {"variant_id": self.variant.pk, "quantity": 1})
+
+        with self.assertRaises(ValueError):
+            create_order_snapshot(
+                user,
+                self.client.session,
+                idempotency_key=uuid.uuid4(),
+                shipping_minor=-1,
+                tax_minor=0,
+                currency="USD",
+            )
+
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_order_snapshot_rejects_reusing_key_with_changed_quote(self):
+        user = get_user_model().objects.create_user("buyer@example.com", "passphrase-1234")
+        self.client.post(reverse("commerce:add"), {"variant_id": self.variant.pk, "quantity": 1})
+        key = uuid.uuid4()
+        create_order_snapshot(
+            user,
+            self.client.session,
+            idempotency_key=key,
+            shipping_minor=100,
+            tax_minor=0,
+            currency="USD",
+        )
+
+        with self.assertRaises(CartError):
+            create_order_snapshot(
+                user,
+                self.client.session,
+                idempotency_key=key,
+                shipping_minor=200,
+                tax_minor=0,
+                currency="USD",
+            )
+
+        self.assertEqual(Order.objects.count(), 1)
+
     def test_checkout_does_not_create_an_order_or_clear_the_cart(self):
         self.client.post(reverse("commerce:add"), {"variant_id": self.variant.pk, "quantity": 1})
 
@@ -122,3 +210,62 @@ class CartFlowTests(TestCase):
 
         self.assertEqual(summary.lines, [])
         self.assertFalse(summary.can_continue)
+
+
+class OrderHistoryAccessTests(TestCase):
+    def setUp(self):
+        self.owner = get_user_model().objects.create_user("owner@example.com", "passphrase-1234")
+        self.other_user = get_user_model().objects.create_user(
+            "other@example.com", "passphrase-5678"
+        )
+        product = Product.objects.create(
+            name="Desk Lamp",
+            slug="desk-lamp",
+            currency="USD",
+            publication_status=Product.PublicationStatus.PUBLISHED,
+        )
+        variant = ProductVariant.objects.create(
+            product=product, sku="LAMP-BRASS", label="Brass", price_minor=6200, available_units=2
+        )
+        self.order = create_order_snapshot(
+            self.owner,
+            {"cart_items": {str(variant.pk): 1}},
+            idempotency_key=uuid.uuid4(),
+            shipping_minor=0,
+            tax_minor=0,
+            currency="USD",
+        )
+
+    def test_order_history_is_available_to_signed_in_customer(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.get(reverse("accounts:orders"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.order.order_number.hex[:8])
+
+    def test_customer_cannot_view_another_customers_order(self):
+        self.client.force_login(self.other_user)
+
+        response = self.client.get(reverse("accounts:order-detail", args=[self.order.order_number]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_order_detail_displays_saved_price_after_catalog_changes(self):
+        Product.objects.filter(slug="desk-lamp").update(name="Updated product title")
+        ProductVariant.objects.filter(sku="LAMP-BRASS").update(price_minor=9999)
+        self.client.force_login(self.owner)
+
+        response = self.client.get(reverse("accounts:order-detail", args=[self.order.order_number]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Desk Lamp")
+        self.assertContains(response, "USD 62.00")
+        self.assertNotContains(response, "Updated product title")
+
+    def test_order_line_snapshot_cannot_be_saved_over(self):
+        line = self.order.lines.get()
+        line.product_name = "Changed title"
+
+        with self.assertRaises(ValidationError):
+            line.save()

@@ -27,7 +27,7 @@ Build the requested store incrementally as a Django modular monolith. The curren
 
 ### Phase 3: Commerce foundation
 
-7. Add server-priced session cart, currency consistency, availability rechecks, order snapshots, and order history.
+7. Add server-priced session cart, currency consistency, quantity availability rechecks, immutable order snapshots, and owner-scoped order history. (Implemented.)
 8. Add payment adapter contracts and webhook receipt/idempotency storage; keep order placement unavailable until payment and shipping/tax decisions and credentials are supplied.
 
 ### Phase 4: Community and promotions

@@ -7,6 +7,8 @@ from .views import (
     StorePasswordResetConfirmView,
     StorePasswordResetDoneView,
     StorePasswordResetView,
+    order_detail,
+    order_history,
     register,
     saved_products,
     toggle_saved_product,
@@ -32,4 +34,6 @@ urlpatterns = [
     ),
     path("saved/", saved_products, name="saved"),
     path("saved/<int:product_id>/toggle/", toggle_saved_product, name="toggle-saved"),
+    path("orders/", order_history, name="orders"),
+    path("orders/<uuid:order_number>/", order_detail, name="order-detail"),
 ]

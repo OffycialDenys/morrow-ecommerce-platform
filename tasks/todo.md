@@ -23,9 +23,9 @@
 - [x] Add server-side cart calculations with variant availability and currency checks.
   - Acceptance: client-provided prices are ignored; stale/unavailable items block checkout review.
   - Verify: forged price, quantity, stock, unavailable variant, and mixed-currency tests.
-- [ ] Add durable order snapshots and owner-scoped order history.
+- [x] Add durable order snapshots and owner-scoped order history.
   - Acceptance: historical totals stay fixed; payment and fulfillment states are distinct.
-  - Verify: snapshot, authorization, duplicate order/event, and state transition tests.
+  - Verify: snapshot, authorization, and duplicate order tests. Payment-event and state-transition tests remain with provider work.
 - [ ] Add provider adapters, idempotent webhook records, sandbox flows, refund/reconciliation operations.
   - Acceptance: exact current provider contract is verified and sandbox tests run; no browser redirect marks an order paid.
   - Verify: provider test doubles plus real sandbox evidence.

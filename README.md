@@ -54,10 +54,11 @@ This Compose file is for local development only. It runs Django's development se
 - Published product listing, categories, search, filters, pagination, product details, and a versioned read-only catalog API.
 - Email-based registration, login/logout, password reset, and owner-scoped saved products.
 - Server-derived cart totals, variant availability checks, quantity caps, mixed-currency protection, and supplier-stock freshness checks.
+- Internal idempotent order snapshot service, immutable line pricing, distinct payment/fulfillment fields, and owner-scoped order history.
 - Responsive original storefront design, autoescaped product descriptions, health endpoints, and browser security headers.
 - Django Admin product/category management with explicit draft/review/published states.
 
-Checkout does not create an order or accept delivery information. No payment is taken. Points, reviews, live supplier synchronization, refunds, fulfillment, and giveaway administration are not implemented yet.
+The customer checkout route does not create an order or accept delivery information. The order snapshot service is an internal foundation and requires a trusted server-side shipping/tax quote; it is not called by checkout. No payment is taken. Points, reviews, live supplier synchronization, refunds, active fulfillment, and giveaway administration are not implemented yet.
 
 ## Architecture and module boundaries
 

@@ -12,6 +12,7 @@ The platform is a Django modular monolith. Server-rendered HTML is the primary s
 - AliExpress synchronization remains a planned integration boundary until authorized API access and contracts are available.
 - `storefront`: presentation and request orchestration; business calculations stay in domain services.
 - `config`: environment configuration, URL routing, and production defaults.
+- `sitecore`: health endpoints, security headers, request correlation, and immutable cross-domain audit records.
 
 The current code implements the catalog, accounts, cart, order snapshots/history, Stripe and PayPal server adapters, payment attempt/event state handling, a disabled-by-default points ledger and giveaway lifecycle, verified-purchase review submission and moderation, health, and storefront slices. Provider checkout is not connected to customer order placement because market, shipping, tax, and payment decisions remain open. Purchase/points giveaway entry hooks and winner notifications remain planned work.
 

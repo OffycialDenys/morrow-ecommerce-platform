@@ -8,6 +8,7 @@ from accounts.models import SavedProduct, User
 from catalog.models import Product, ProductVariant
 from commerce.models import Order, OrderLine, PaymentAttempt
 from promotions.models import PointEntry
+from sitecore.models import AuditEvent
 
 
 class AccountFlowTests(TestCase):
@@ -180,6 +181,7 @@ class AccountDataExportTests(TestCase):
             response,
             f"{reverse('accounts:login')}?next={reverse('accounts:data-export')}",
         )
+        self.assertFalse(AuditEvent.objects.exists())
 
     def test_export_contains_owner_records_without_credentials_or_other_accounts(self):
         other_product = Product.objects.create(
@@ -219,3 +221,8 @@ class AccountDataExportTests(TestCase):
         self.assertEqual(payload["orders"][0]["payment_attempts"][0]["provider"], "stripe")
         self.assertEqual(payload["points_ledger"][0]["points"], 5)
         self.assertNotIn("Other customer item", json.dumps(payload))
+        event = AuditEvent.objects.get()
+        self.assertEqual(event.action, AuditEvent.Action.ACCOUNT_DATA_EXPORTED)
+        self.assertEqual(event.actor, self.owner)
+        self.assertEqual(event.subject, self.owner)
+        self.assertEqual(str(event.request_id), response["X-Request-ID"])

@@ -23,6 +23,8 @@ from commerce.models import Order
 from promotions.models import PointEntry
 from promotions.points import get_points_balance
 from reviews.models import ProductReview, ReviewAppeal
+from sitecore.audit import record_audit_event
+from sitecore.models import AuditEvent
 
 from .exports import stream_account_export
 from .forms import RegistrationForm
@@ -169,6 +171,12 @@ def points_history(request):
 @login_required
 @require_GET
 def download_account_data(request):
+    record_audit_event(
+        action=AuditEvent.Action.ACCOUNT_DATA_EXPORTED,
+        request_id=request.request_id,
+        actor=request.user,
+        subject=request.user,
+    )
     response = StreamingHttpResponse(
         stream_account_export(request.user.pk),
         content_type="application/json; charset=utf-8",

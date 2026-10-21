@@ -48,6 +48,7 @@
   - Acceptance: every launch gate has evidence or a named blocker.
   - Implemented: keyboard focus visibility, improved small-text contrast and form-boundary contrast, 24px minimum targets for key navigation/action links, and announced review/giveaway form errors.
   - Implemented: authenticated customers can download a streamed, owner-scoped JSON export of current account and customer-facing commerce records.
+  - Implemented: server-generated request correlation IDs on responses and immutable internal audit records for customer account-data exports.
   - Still needed: agree retention/deletion workflows and review the export scope for applicable privacy law; it intentionally excludes authentication secrets and internal staff/security audit records.
   - Still needed: full WCAG 2.2 AA review at 400% zoom, representative browser/screen-reader checks, complete target-size audit, Lighthouse measurements, and device coverage.
   - Verified 2026-10-21: full Django regression suite passed (114 tests); `ruff check .`, `python manage.py check`, and `makemigrations --check --dry-run` also passed using `.venv`.

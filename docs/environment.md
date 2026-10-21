@@ -23,5 +23,6 @@ Use `.env.example` as a local development template only. Store production secret
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe server key and webhook signing secret. | Keep in a secret manager; use matching test/live credentials. |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID` | PayPal server credentials and registered webhook ID. | Keep secrets in a secret manager and match the environment. |
 | `POINTS_PROGRAM_ENABLED` | Enables per-unit points posting for paid orders. | Defaults to `false`; enable only after point terms and earning values are approved. |
+| `GIVEAWAYS_ENABLED` | Enables public giveaway listing and free-entry pages. | Defaults to `false`; enable only after counsel-reviewed rules, operating controls, and eligibility checks are ready. |
 | `REVIEW_RATE_LIMIT_HOURLY` | Maximum review submissions or edits per customer in a rolling hour. | Defaults to 5; must be a positive integer. |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Local Compose PostgreSQL setup. | Local-only values; use managed database credentials in production. |

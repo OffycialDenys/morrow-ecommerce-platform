@@ -195,6 +195,24 @@ small { font-size: .8rem; }
 .review-form .field textarea { width: 100%; min-height: 10rem; padding: .65rem; border: 1px solid #bdc0b5; border-radius: 0; background: var(--white); color: var(--ink); font: inherit; font-size: .88rem; resize: vertical; }
 .review-form .field input { max-width: 9rem; }
 .review-form .button { margin-top: .3rem; }
+.giveaway-list-section, .giveaway-detail-layout { width: min(68rem, calc(100% - 4rem)); margin: 0 auto 6rem; }
+.giveaway-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.giveaway-card, .giveaway-rules, .giveaway-entry-panel { padding: clamp(1.3rem, 3vw, 2rem); background: var(--white); }
+.giveaway-card h2 { font-size: 1.8rem; }
+.giveaway-card h2 a { text-decoration: none; }
+.giveaway-card > p:not(.eyebrow), .giveaway-empty { color: var(--ink-soft); }
+.giveaway-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); align-items: start; gap: 1.2rem; }
+.giveaway-rules h2 { font-size: 1.6rem; }
+.giveaway-rules h3 { margin: 1.8rem 0 .4rem; font-family: inherit; font-size: .85rem; font-weight: 700; letter-spacing: .06em; }
+.giveaway-facts { margin: 1.6rem 0; border-top: 1px solid var(--line); }
+.giveaway-facts div { padding: .7rem 0; display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); font-size: .78rem; }
+.giveaway-facts dt { color: var(--ink-soft); }
+.giveaway-facts dd { margin: 0; text-align: right; }
+.giveaway-entry-panel { background: #eeece2; }
+.giveaway-entry-panel h2 { font-size: 1.7rem; }
+.giveaway-entry-panel > p:not(.eyebrow) { color: var(--ink-soft); font-size: .83rem; }
+.giveaway-entry-form { margin-top: 1.3rem; }
+.giveaway-entry-form select, .giveaway-entry-form input { width: 100%; min-height: 2.65rem; padding: .55rem .65rem; border: 1px solid #bdc0b5; border-radius: 0; background: var(--white); color: var(--ink); font-size: .84rem; }
 .detail-copy h1 { margin: .4rem 0 1rem; font-size: clamp(2.4rem, 4vw, 4rem); }
 .detail-price { margin: 0 0 1.4rem; font-size: 1rem; font-weight: 650; }
 .product-description { color: var(--ink-soft); }
@@ -364,6 +382,8 @@ small { font-size: .8rem; }
   .review-section, .review-form-section { width: calc(100% - 2rem); margin-bottom: 4rem; }
   .review-list { grid-template-columns: 1fr; }
   .review-section .section-heading { flex-wrap: wrap; }
+  .giveaway-list-section, .giveaway-detail-layout { width: calc(100% - 2rem); margin-bottom: 4rem; }
+  .giveaway-list, .giveaway-detail-layout { grid-template-columns: 1fr; }
   .auth-shell { width: calc(100% - 2rem); margin: 1rem auto 3rem; grid-template-columns: 1fr; }
   .auth-aside { min-height: 18rem; padding: 2rem; }
   .auth-aside h1 { font-size: 3.6rem; }

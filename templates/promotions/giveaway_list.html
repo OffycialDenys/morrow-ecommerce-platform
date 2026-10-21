@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Giveaways — Morrow{% endblock %}
+{% block content %}
+<section class="page-intro">
+  <p class="eyebrow">Morrow promotions</p>
+  <h1>Giveaways</h1>
+  <p>Current promotions and their official entry details.</p>
+</section>
+<section class="giveaway-list-section">
+  {% if campaigns %}
+    <div class="giveaway-list">
+      {% for campaign in campaigns %}
+        <article class="giveaway-card">
+          <p class="eyebrow">Entry closes {{ campaign.ends_at|date:"F j, Y, g:i a T" }}</p>
+          <h2><a href="{% url 'promotions:giveaway-detail' campaign.slug %}">{{ campaign.name }}</a></h2>
+          <p>{{ campaign.description|default:campaign.prize_description|truncatewords:28 }}</p>
+          <a class="text-link" href="{% url 'promotions:giveaway-detail' campaign.slug %}">See entry details</a>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}<p class="giveaway-empty">There are no open giveaways right now.</p>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p>This action records a cancellation for each selected giveaway.</p>
+  <ul>
+    {% for campaign in campaigns %}<li>{{ campaign.name }} — {{ campaign.get_status_display }}</li>{% endfor %}
+  </ul>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="select_across" value="{{ select_across }}">
+    {% for campaign in campaigns %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ campaign.pk }}">{% endfor %}
+    <label for="cancel-reason">Reason for cancellation</label>
+    <textarea id="cancel-reason" name="reason" rows="4" maxlength="240" required></textarea>
+    <input type="hidden" name="apply" value="yes">
+    <button type="submit" class="button">Cancel selected giveaways</button>
+  </form>
+{% endblock %}

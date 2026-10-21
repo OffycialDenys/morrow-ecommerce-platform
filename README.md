@@ -58,10 +58,11 @@ This Compose file is for local development only. It runs Django's development se
 - Stripe Checkout and PayPal Orders v2 server adapters, signed webhook endpoints, provider transaction IDs, and internal idempotent payment state handling; customer checkout remains disabled pending store rules and sandbox verification.
 - Immutable per-unit points ledger, paid-order idempotency, compensating reversals, and owner-scoped points history; rewards stay disabled until their terms are approved.
 - Delivered-purchase reviews with customer edits, pending moderation, audited moderator decisions, and approved-only product summaries.
+- Giveaway drafts, separately approved rules and activation, limited free entry, immutable ticket/audit records, and independently approved cryptographic drawings; all public giveaway flows default off.
 - Responsive original storefront design, autoescaped product descriptions, health endpoints, and browser security headers.
 - Django Admin product/category management with explicit draft/review/published states.
 
-The customer checkout route does not create an order or accept delivery information. The order snapshot service is an internal foundation and requires a trusted server-side shipping/tax quote; it is not called by checkout. No payment is taken. Points remain disabled pending policy approval. Review abuse reporting and moderation operations, live supplier synchronization, refunds, active fulfillment, and giveaway administration are not implemented yet.
+The customer checkout route does not create an order or accept delivery information. The order snapshot service is an internal foundation and requires a trusted server-side shipping/tax quote; it is not called by checkout. No payment is taken. Points and giveaways remain disabled pending policy approval. Giveaway entry from purchase or points, automatic activation/closure, and winner notifications are not connected. Review abuse reporting and moderation operations, live supplier synchronization, refunds, and active fulfillment also remain unfinished.
 
 ## Architecture and module boundaries
 
@@ -78,6 +79,7 @@ See [architecture](docs/architecture.md), [ADR-0001](docs/decisions/0001-django-
 - Payment setup gate: [docs/payments.md](docs/payments.md)
 - Points policy and ledger: [docs/points.md](docs/points.md)
 - Verified purchase review behavior and remaining policy: [docs/reviews.md](docs/reviews.md)
+- Giveaway approval, entry, draw controls, and launch gates: [docs/giveaways.md](docs/giveaways.md)
 - Outstanding decisions and launch gates: [docs/launch-gates.md](docs/launch-gates.md)
 
 ## Verification status

@@ -212,6 +212,7 @@ PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
 PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
 PAYPAL_WEBHOOK_ID = os.environ.get("PAYPAL_WEBHOOK_ID", "")
 POINTS_PROGRAM_ENABLED = env_bool("POINTS_PROGRAM_ENABLED", default=False)
+GIVEAWAYS_ENABLED = env_bool("GIVEAWAYS_ENABLED", default=False)
 REVIEW_RATE_LIMIT_HOURLY = int(os.environ.get("REVIEW_RATE_LIMIT_HOURLY", "5"))
 if REVIEW_RATE_LIMIT_HOURLY < 1:
     raise ImproperlyConfigured("REVIEW_RATE_LIMIT_HOURLY must be positive.")

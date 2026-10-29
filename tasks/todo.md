@@ -53,5 +53,6 @@
   - Still needed: agree retention/deletion workflows and review the export scope for applicable privacy law; it intentionally excludes authentication secrets and internal staff/security audit records.
   - Still needed: full WCAG 2.2 AA review at 400% zoom, representative browser/screen-reader checks, complete target-size audit, Lighthouse measurements, and device coverage.
   - Verified 2026-10-30: full Django regression suite passed (118 tests); `ruff check .`, `python manage.py check`, and `makemigrations --check --dry-run` also passed using `.venv`.
+  - Verified 2026-10-30: Docker Compose rendered the expected `db` and `web` services. Startup/recovery rehearsal remains blocked in this workspace because Docker Desktop is unavailable and no local `.env` is configured.
   - Verified 2026-10-21: `pip-audit -r requirements.txt` reported no known vulnerabilities.
   - Still needed: Lighthouse measurements, restore rehearsal, and provider sandbox records.

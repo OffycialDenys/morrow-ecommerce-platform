@@ -1,11 +1,13 @@
 import hashlib
 from datetime import timedelta
+from io import StringIO
 from unittest.mock import patch
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.management import CommandError, call_command
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -59,9 +61,7 @@ class GiveawayLifecycleTests(TestCase):
         self.campaign = self.create_campaign()
 
     def grant(self, user, codename):
-        permission = Permission.objects.get(
-            content_type__app_label="promotions", codename=codename
-        )
+        permission = Permission.objects.get(content_type__app_label="promotions", codename=codename)
         user.user_permissions.add(permission)
 
     def create_campaign(self, *, ends_at=None, prize_quantity=1):
@@ -109,6 +109,53 @@ class GiveawayLifecycleTests(TestCase):
 
         self.assertEqual(active.status, GiveawayCampaign.Status.ACTIVE)
         self.assertEqual(active.rules_approved_by_id, self.rules_reviewer.pk)
+
+    @override_settings(GIVEAWAYS_ENABLED=True)
+    def test_close_expired_campaign_command_requires_authorized_operator_and_apply_flag(self):
+        self.approve_and_activate()
+        expired_at = timezone.now() - timedelta(minutes=1)
+        GiveawayCampaign.objects.filter(pk=self.campaign.pk).update(ends_at=expired_at)
+        stdout = StringIO()
+
+        with patch(
+            "promotions.management.commands.close_expired_giveaways.timezone.now",
+            return_value=expired_at + timedelta(seconds=1),
+        ):
+            call_command(
+                "close_expired_giveaways",
+                operator_email=self.activator.email,
+                stdout=stdout,
+            )
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.status, GiveawayCampaign.Status.ACTIVE)
+        self.assertIn("Would close campaign", stdout.getvalue())
+
+        with patch(
+            "promotions.management.commands.close_expired_giveaways.timezone.now",
+            return_value=expired_at + timedelta(seconds=1),
+        ), patch(
+            "promotions.giveaways.timezone.now", return_value=expired_at + timedelta(seconds=1)
+        ):
+            call_command(
+                "close_expired_giveaways",
+                operator_email=self.activator.email,
+                apply=True,
+                stdout=StringIO(),
+            )
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.status, GiveawayCampaign.Status.CLOSED)
+        self.assertTrue(
+            self.campaign.audit_events.filter(
+                event_type=GiveawayAuditEvent.EventType.CLOSED
+            ).exists()
+        )
+
+        with self.assertRaises(CommandError):
+            call_command(
+                "close_expired_giveaways",
+                operator_email=self.customer.email,
+                apply=True,
+            )
 
     def test_incomplete_campaign_cannot_be_approved(self):
         self.campaign.official_rules_url = ""

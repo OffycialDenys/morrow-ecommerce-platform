@@ -24,6 +24,26 @@ Create an admin account with:
 
 Add products in `/admin/`. Products start as drafts and appear in the public catalog only after a staff member sets publication status to **Published**. Variants need an explicit currency, integer minor-unit price, and known available quantity. Supplier-observed inventory must have a recent observation; an unknown or stale observation cannot be added to the bag.
 
+## Storefront preview
+
+The screenshots below were captured from the local development server with a small, local-only demo catalog. They provide a visual reference for the public storefront; they do not represent live supplier inventory, checkout, or payment processing.
+
+### Home
+
+![Morrow home page](output/playwright/morrow-home.png)
+
+### Collection
+
+![Morrow collection page](output/playwright/morrow-shop.png)
+
+### Product detail
+
+![Morrow product detail page](output/playwright/morrow-product-detail.png)
+
+### Shopping bag
+
+![Morrow shopping bag page](output/playwright/morrow-bag.png)
+
 ## Docker Compose with PostgreSQL
 
 ```powershell
